@@ -3,10 +3,13 @@ Mightex SLC LED Controller Interface
 Clean Python API for controlling Mightex Sirius LED drivers via RS232
 """
 
-import serial
+from __future__ import annotations
+
 import time
-from typing import Optional
 from dataclasses import dataclass
+from typing import Optional
+
+import serial
 
 
 @dataclass
@@ -106,14 +109,17 @@ class MightexSLC:
         Returns:
             Response string with whitespace stripped
         """
-        if not self._ser or not self._ser.is_open:
+        ser = self._ser
+        if ser is None or not ser.is_open:
             raise RuntimeError("Serial port not open. Call connect() first.")
 
-        full_cmd = cmd + "\n\r"
-        self._ser.write(full_cmd.encode("ascii"))
+        full_cmd = f"{cmd}\n\r"
+        ser.write(full_cmd.encode("ascii"))
         time.sleep(delay)
-        response = self._ser.read_all().decode("ascii", errors="replace")
-        return response.strip()
+
+        n = ser.in_waiting
+        raw = ser.read(n) if n else b""
+        return raw.decode("ascii", errors="replace").strip()
 
     def get_device_info(self) -> DeviceInfo:
         """Get device information (model, firmware, serial number)"""
