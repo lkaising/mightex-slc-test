@@ -16,7 +16,6 @@ import logging
 import time
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional
 
 import serial
 
@@ -118,8 +117,8 @@ def _validate_current(current_ma: int, label: str = "current") -> None:
 def _validate_mode(mode: int) -> None:
     try:
         Mode(mode)
-    except ValueError:
-        raise ValidationError(f"Invalid mode {mode}; expected one of {list(Mode)}")
+    except ValueError as err:
+        raise ValidationError(f"Invalid mode {mode}; expected one of {list(Mode)}") from err
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +150,7 @@ class MightexSLC:
         self.port = port
         self.baud = baud
         self.timeout = timeout
-        self._ser: Optional[serial.Serial] = None
+        self._ser: serial.Serial | None = None
 
     # -- Context manager ----------------------------------------------------
 
@@ -326,7 +325,7 @@ class MightexSLC:
         self,
         channel: int,
         current_ma: int,
-        max_current_ma: Optional[int] = None,
+        max_current_ma: int | None = None,
     ) -> bool:
         """Enable *channel* in NORMAL mode at *current_ma*.
 

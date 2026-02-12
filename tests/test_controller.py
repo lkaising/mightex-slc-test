@@ -11,6 +11,7 @@ Integration tests (marked ``@pytest.mark.hardware``) require a real device on
 from __future__ import annotations
 
 import time
+from contextlib import suppress
 from unittest.mock import patch
 
 import pytest
@@ -134,12 +135,14 @@ class TestConnection:
     def test_serial_open_failure_raises_connection_error(self):
         import serial as _serial
 
-        with patch(
-            "mightex_slc.controller.serial.Serial",
-            side_effect=_serial.SerialException("port busy"),
+        with (
+            patch(
+                "mightex_slc.controller.serial.Serial",
+                side_effect=_serial.SerialException("port busy"),
+            ),
+            pytest.raises(ConnectionError, match="Cannot open"),
         ):
-            with pytest.raises(ConnectionError, match="Cannot open"):
-                MightexSLC("/dev/nonexistent").connect()
+            MightexSLC("/dev/nonexistent").connect()
 
 
 # ── Command I/O ───────────────────────────────────────────────────────────
@@ -337,10 +340,8 @@ class TestHardwareIntegration:
         yield
         # Safety: disable all channels on teardown
         for ch in range(1, 5):
-            try:
+            with suppress(Exception):
                 self.led.disable_channel(ch)
-            except Exception:
-                pass
         self.led.disconnect()
 
     def test_device_info(self):
