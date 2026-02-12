@@ -91,13 +91,13 @@ with get_controller('/dev/ttyUSB0') as led:
     # Get device info
     info = led.get_device_info()
     print(f"Connected to: {info.module_number}")
-    
+
     # Turn on channel 1 at 50mA
     led.enable_channel(1, current_ma=50)
-    
+
     # Change brightness to 100mA
     led.set_current(1, 100)
-    
+
     # Turn off
     led.disable_channel(1)
 ```
@@ -126,7 +126,7 @@ from mightex_slc import MightexSLC
 with MightexSLC('/dev/ttyUSB0') as led:
     # Turn on at 50mA
     led.enable_channel(1, current_ma=50)
-    
+
     # Turn off
     led.disable_channel(1)
 ```
@@ -151,14 +151,14 @@ from mightex_slc import MightexSLC
 with MightexSLC('/dev/ttyUSB0') as led:
     # Set normal mode parameters
     led.set_normal_mode(channel=1, max_current_ma=200, set_current_ma=100)
-    
+
     # Enable NORMAL mode
     led.set_mode(1, MightexSLC.MODE_NORMAL)
-    
+
     # Query current mode
     mode = led.get_mode(1)
     print(f"Mode: {mode}")  # 1 = NORMAL
-    
+
     # Disable
     led.set_mode(1, MightexSLC.MODE_DISABLE)
 ```
@@ -172,7 +172,7 @@ with MightexSLC('/dev/ttyUSB0') as led:
     # Configure channels
     led.set_normal_mode(1, 200, 100)
     led.set_normal_mode(2, 200, 50)
-    
+
     # Save to non-volatile memory (persists through power cycles)
     led.store_settings()
 ```
@@ -304,9 +304,9 @@ This project is for research use at Rutgers University.
 
 ## Author
 
-Logan Hallee  
-PhD Student, Biomedical Engineering  
-Rutgers University  
+Logan Hallee
+PhD Student, Biomedical Engineering
+Rutgers University
 Yarmush Lab
 
 ## Acknowledgments
