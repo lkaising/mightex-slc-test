@@ -24,14 +24,23 @@ class DeviceInfo:
         module = "Unknown"
         serial = "Unknown"
 
-        if "Driver:" in response:
-            firmware = response.split("Driver:")[1].split()[0]
+        try:
+            if "Driver:" in response:
+                parts = response.split("Driver:")[1].split()
+                if parts:
+                    firmware = parts[0]
 
-        if "Module No.:" in response:
-            module = response.split("Module No.:")[1].split()[0]
+            if "Module No.:" in response:
+                parts = response.split("Module No.:")[1].split()
+                if parts:
+                    module = parts[0]
 
-        if "Serial No.:" in response:
-            serial = response.split("Serial No.:")[1].split()[0]
+            if "Serial No.:" in response:
+                parts = response.split("Serial No.:")[1].split()
+                if parts:
+                    serial = parts[0]
+        except (IndexError, AttributeError):
+            pass
 
         return cls(firmware, module, serial)
 
@@ -86,7 +95,7 @@ class MightexSLC:
         if self._ser and self._ser.is_open:
             self._ser.close()
 
-    def _send_command(self, cmd: str, delay: float = 0.1) -> str:
+    def _send_command(self, cmd: str, delay: float = 0.2) -> str:
         """
         Send command to controller and return response
 
@@ -180,9 +189,11 @@ class MightexSLC:
             Tuple of (max_current_ma, set_current_ma)
         """
         response = self._send_command(f"?CURRENT {channel}")
-        # Response format: #Cal1 Cal2 Imax Iset ... (ignore calibration values)
+        # Response format: #Cal1 Cal2 ... CalN Imax Iset
+        # The SA module returns many calibration values, with Imax and Iset at the END
         parts = response.replace("#", "").split()
         if len(parts) >= 2:
+            # Imax and Iset are the last two values
             return int(parts[-2]), int(parts[-1])
         return 0, 0
 

@@ -35,6 +35,8 @@ def test_device_info():
     print("=" * 60)
 
     with MightexSLC(PORT) as led:
+        raw_response = led._send_command("DEVICEINFO")
+        print(f"Raw DEVICEINFO response: {repr(raw_response)}")
         info = led.get_device_info()
 
         print(f"Firmware Version: {info.firmware_version}")
@@ -42,7 +44,7 @@ def test_device_info():
         print(f"Serial Number:    {info.serial_number}")
 
         # Validate
-        assert "SLC" in info.module_number, "Invalid module number"
+        assert "SLC" in info.module_number, f"Invalid module number: {info.module_number}"
         assert len(info.serial_number) > 0, "Missing serial number"
         assert len(info.firmware_version) > 0, "Missing firmware version"
 
@@ -122,6 +124,8 @@ def test_current_control():
     print("Test 5: Current Control")
     print("=" * 60)
 
+    import time
+
     with MightexSLC(PORT) as led:
         channel = 1
 
@@ -133,6 +137,9 @@ def test_current_control():
         # Change current
         new_current = 20  # mA
         assert led.set_current(channel, new_current), "Failed to set current"
+
+        # Give device time to apply
+        time.sleep(0.3)
 
         # Verify
         _, set_current = led.get_normal_params(channel)
@@ -208,9 +215,19 @@ def test_device_info_parsing():
     )
     info = DeviceInfo.from_response(test_response)
 
-    assert info.firmware_version == "3.1.8", "Firmware version parsing failed"
-    assert info.module_number == "SLC-SA04-U/S", "Module number parsing failed"
-    assert info.serial_number == "04-251013-011", "Serial number parsing failed"
+    print(f"Parsed firmware: {info.firmware_version}")
+    print(f"Parsed module: {info.module_number}")
+    print(f"Parsed serial: {info.serial_number}")
+
+    assert info.firmware_version == "3.1.8", (
+        f"Firmware version parsing failed: got '{info.firmware_version}'"
+    )
+    assert info.module_number == "SLC-SA04-U/S", (
+        f"Module number parsing failed: got '{info.module_number}'"
+    )
+    assert info.serial_number == "04-251013-011", (
+        f"Serial number parsing failed: got '{info.serial_number}'"
+    )
 
     print("✓ DeviceInfo parsing validated")
     return True
