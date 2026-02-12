@@ -1,78 +1,64 @@
 #!/usr/bin/env python3
 """
-Example usage of the Mightex SLC controller module
+Example usage of the Mightex SLC controller module.
 
-This script demonstrates:
-- Connecting to the controller
-- Getting device information
-- Controlling LED channels
-- Changing brightness
-- Proper cleanup
+Demonstrates connecting, querying, and controlling LED channels.
 """
 
 import sys
 import time
 
-# Add src to path so we can import mightex_slc
+# Add src to path so we can import without installing
 sys.path.insert(0, "src")
 
-from mightex_slc import get_controller
+from mightex_slc import Mode, get_controller
 
 
-def main():
-    """Run example LED control sequence"""
-
-    print("Mightex SLC LED Controller - Example Usage")
+def main() -> None:
+    """Run example LED control sequence."""
+    print("Mightex SLC LED Controller — Example Usage")
     print("=" * 60)
 
-    # Use context manager for automatic connection/disconnection
     with get_controller("/dev/ttyUSB0") as led:
-        # Get device information
+        # ── Device info ───────────────────────────────────────────
         info = led.get_device_info()
-        print("\nConnected to Device:")
+        print(f"\nConnected to:")
         print(f"  Model:     {info.module_number}")
         print(f"  Firmware:  {info.firmware_version}")
         print(f"  Serial:    {info.serial_number}")
 
-        # Example 1: Turn on channel 1 at 50mA
-        print("\n" + "=" * 60)
-        print("Example 1: Enable channel 1 at 50mA")
+        # ── Turn on channel 1 at 50 mA ───────────────────────────
+        print(f"\n{'=' * 60}")
+        print("1) Enable channel 1 at 50 mA")
         led.enable_channel(1, current_ma=50)
-        print("✓ Channel 1 ON at 50mA")
-
+        print("   ✓ ON")
         time.sleep(2)
 
-        # Example 2: Change brightness
-        print("\n" + "=" * 60)
-        print("Example 2: Change brightness to 100mA")
+        # ── Change brightness ─────────────────────────────────────
+        print(f"\n{'=' * 60}")
+        print("2) Change brightness to 100 mA")
         led.set_current(1, 100)
-        print("✓ Channel 1 brightness changed to 100mA")
-
+        print("   ✓ Brightness updated")
         time.sleep(2)
 
-        # Example 3: Query current mode and parameters
-        print("\n" + "=" * 60)
-        print("Example 3: Query channel status")
+        # ── Query status ──────────────────────────────────────────
+        print(f"\n{'=' * 60}")
+        print("3) Query channel status")
         mode = led.get_mode(1)
-        mode_names = {0: "DISABLE", 1: "NORMAL", 2: "STROBE", 3: "TRIGGER"}
-        print(f"  Mode: {mode_names[mode]}")
-
-        max_current, set_current = led.get_normal_params(1)
-        print(f"  Max Current: {max_current}mA")
-        print(f"  Set Current: {set_current}mA")
-
+        max_ma, set_ma = led.get_normal_params(1)
+        print(f"   Mode:        {mode.name}")
+        print(f"   Max current: {max_ma} mA")
+        print(f"   Set current: {set_ma} mA")
         time.sleep(2)
 
-        # Example 4: Turn off
-        print("\n" + "=" * 60)
-        print("Example 4: Disable channel 1")
+        # ── Turn off ──────────────────────────────────────────────
+        print(f"\n{'=' * 60}")
+        print("4) Disable channel 1")
         led.disable_channel(1)
-        print("✓ Channel 1 OFF")
+        print("   ✓ OFF")
 
-        print("\n" + "=" * 60)
-        print("Example complete!")
-        print("\nNote: Settings are in volatile memory.")
-        print("Use led.store_settings() to save to non-volatile memory.")
+        print(f"\n{'=' * 60}")
+        print("Done!  Use led.store_settings() to persist to NV memory.")
 
 
 if __name__ == "__main__":
