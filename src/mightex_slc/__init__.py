@@ -1,5 +1,9 @@
 """Mightex SLC LED Controller Python Interface"""
 
+from .constants import (
+    MAX_CURRENT_NORMAL_MA,
+    MAX_CURRENT_PULSED_MA,
+)
 from .controller import MightexSLC, get_controller
 from .exceptions import (
     CommandError,
@@ -21,5 +25,7 @@ __all__ = [
     "TriggerPolarity",
     "ValidationError",
     "get_controller",
+    "MAX_CURRENT_NORMAL_MA",
+    "MAX_CURRENT_PULSED_MA",
 ]
 __version__ = "0.1.0"

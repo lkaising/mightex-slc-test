@@ -17,23 +17,19 @@ Example::
 
 from __future__ import annotations
 
-from .protocol import (
+from .constants import (
+    DEFAULT_BAUD,
+    DEFAULT_PORT,
+    DEFAULT_TIMEOUT,
     MAX_CURRENT_NORMAL_MA,
+)
+from .protocol import (
     DeviceInfo,
     Mode,
     SLCProtocol,
     TriggerPolarity,
 )
 from .transport import SerialTransport
-
-# ---------------------------------------------------------------------------
-# Defaults
-# ---------------------------------------------------------------------------
-
-DEFAULT_PORT = "/dev/ttyUSB0"
-DEFAULT_BAUD = 9600
-DEFAULT_TIMEOUT = 1.0
-DEFAULT_MAX_CURRENT_MA = MAX_CURRENT_NORMAL_MA  # NORMAL-mode safety ceiling for enable_channel
 
 
 class MightexSLC:
@@ -160,7 +156,7 @@ class MightexSLC:
         self,
         channel: int,
         current_ma: int,
-        max_current_ma: int = DEFAULT_MAX_CURRENT_MA,
+        max_current_ma: int = MAX_CURRENT_NORMAL_MA,
     ) -> bool:
         """Enable *channel* in NORMAL mode at *current_ma*.
 

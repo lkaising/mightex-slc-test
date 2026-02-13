@@ -26,6 +26,8 @@ from unittest.mock import patch
 import pytest
 
 from mightex_slc import (
+    MAX_CURRENT_NORMAL_MA,
+    MAX_CURRENT_PULSED_MA,
     CommandError,
     ConnectionError,
     DeviceInfo,
@@ -35,7 +37,6 @@ from mightex_slc import (
     TriggerPolarity,
     ValidationError,
 )
-from mightex_slc.protocol import MAX_CURRENT_NORMAL_MA, MAX_CURRENT_PULSED_MA
 
 # ── Constants ─────────────────────────────────────────────────────────────
 

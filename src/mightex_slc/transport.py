@@ -17,6 +17,7 @@ import time
 
 import serial
 
+from .constants import DEFAULT_BAUD, DEFAULT_PORT, DEFAULT_TIMEOUT
 from .exceptions import ConnectionError, TimeoutError
 
 logger = logging.getLogger(__name__)
@@ -42,9 +43,9 @@ class SerialTransport:
 
     def __init__(
         self,
-        port: str = "/dev/ttyUSB0",
-        baudrate: int = 9600,
-        timeout: float = 1.0,
+        port: str = DEFAULT_PORT,
+        baudrate: int = DEFAULT_BAUD,
+        timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
         self.port = port
         self.baudrate = baudrate

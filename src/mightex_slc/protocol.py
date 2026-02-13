@@ -19,6 +19,14 @@ import logging
 from dataclasses import dataclass
 from enum import IntEnum
 
+from .constants import (
+    MAX_CHANNEL,
+    MAX_CURRENT_NORMAL_MA,
+    MAX_CURRENT_PULSED_MA,
+    MAX_DURATION_US,
+    MAX_STEP,
+    MIN_CHANNEL,
+)
 from .exceptions import CommandError, ValidationError
 from .transport import SerialTransport
 
@@ -82,17 +90,10 @@ class DeviceInfo:
 # Validation helpers
 # ---------------------------------------------------------------------------
 
-_MIN_CHANNEL = 1
-_MAX_CHANNEL = 4
-_MAX_STEP = 127
-_MAX_DURATION_US = 99_999_999
-MAX_CURRENT_NORMAL_MA = 1000
-MAX_CURRENT_PULSED_MA = 3500
-
 
 def _validate_channel(channel: int) -> None:
-    if not (_MIN_CHANNEL <= channel <= _MAX_CHANNEL):
-        raise ValidationError(f"Channel must be {_MIN_CHANNEL}-{_MAX_CHANNEL}, got {channel}")
+    if not (MIN_CHANNEL <= channel <= MAX_CHANNEL):
+        raise ValidationError(f"Channel must be {MIN_CHANNEL}-{MAX_CHANNEL}, got {channel}")
 
 
 def _validate_current(current_ma: int, max_ma: int, label: str = "current") -> None:
@@ -109,13 +110,13 @@ def _validate_mode(mode: int) -> None:
 
 
 def _validate_step(step: int) -> None:
-    if not (0 <= step <= _MAX_STEP):
-        raise ValidationError(f"Step must be 0-{_MAX_STEP}, got {step}")
+    if not (0 <= step <= MAX_STEP):
+        raise ValidationError(f"Step must be 0-{MAX_STEP}, got {step}")
 
 
 def _validate_duration(duration_us: int) -> None:
-    if not (0 <= duration_us <= _MAX_DURATION_US):
-        raise ValidationError(f"Duration must be 0-{_MAX_DURATION_US} µs, got {duration_us}")
+    if not (0 <= duration_us <= MAX_DURATION_US):
+        raise ValidationError(f"Duration must be 0-{MAX_DURATION_US} µs, got {duration_us}")
 
 
 def _validate_repeat(repeat: int) -> None:
