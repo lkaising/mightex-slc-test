@@ -84,10 +84,10 @@ class DeviceInfo:
 
 _MIN_CHANNEL = 1
 _MAX_CHANNEL = 4
-_MAX_STEP = 127  # max profile steps per Mightex SDK docs
-_MAX_DURATION_US = 99_999_999  # practical upper bound for step duration
-MAX_CURRENT_NORMAL_MA = 1000  # NORMAL (constant-current) mode ceiling
-MAX_CURRENT_PULSED_MA = 3500  # STROBE and TRIGGER mode ceiling
+_MAX_STEP = 127
+_MAX_DURATION_US = 99_999_999
+MAX_CURRENT_NORMAL_MA = 1000
+MAX_CURRENT_PULSED_MA = 3500
 
 
 def _validate_channel(channel: int) -> None:
@@ -96,16 +96,7 @@ def _validate_channel(channel: int) -> None:
 
 
 def _validate_current(current_ma: int, max_ma: int, label: str = "current") -> None:
-    """Validate that *current_ma* is within ``0..max_ma``.
-
-    Args:
-        current_ma: The current value to validate.
-        max_ma: Upper bound in mA (mode-specific).
-        label: Human-readable name for error messages.
-
-    Raises:
-        ValidationError: If *current_ma* is out of range.
-    """
+    """Validate that *current_ma* is within ``0..max_ma``."""
     if not (0 <= current_ma <= max_ma):
         raise ValidationError(f"{label} must be 0-{max_ma} mA, got {current_ma}")
 
@@ -127,6 +118,11 @@ def _validate_duration(duration_us: int) -> None:
         raise ValidationError(f"Duration must be 0-{_MAX_DURATION_US} µs, got {duration_us}")
 
 
+def _validate_repeat(repeat: int) -> None:
+    if repeat < 0:
+        raise ValidationError(f"Repeat must be >= 0, got {repeat}")
+
+
 # ---------------------------------------------------------------------------
 # Ack checking
 # ---------------------------------------------------------------------------
@@ -135,15 +131,7 @@ def _validate_duration(duration_us: int) -> None:
 def _check_ack(response: str, cmd: str) -> str:
     """Inspect a response for error codes and raise if found.
 
-    Args:
-        response: Decoded, stripped response from the transport.
-        cmd: The command that produced this response (for error messages).
-
-    Returns:
-        The response string, unmodified, if no error was detected.
-
-    Raises:
-        CommandError: If the controller signals an error.
+    Returns the response string unmodified if no error was detected.
     """
     if response.startswith("#!"):
         raise CommandError(f"Controller error for '{cmd}': {response}")
@@ -155,14 +143,43 @@ def _check_ack(response: str, cmd: str) -> str:
 
 
 def _expect_ack(response: str, cmd: str) -> None:
-    """Assert that *response* contains the ``##`` success marker.
-
-    Raises:
-        CommandError: If ``##`` is not present in the response.
-    """
+    """Assert that *response* contains the ``##`` success marker."""
     _check_ack(response, cmd)
     if "##" not in response:
         raise CommandError(f"Expected '##' acknowledgement for '{cmd}', got: {response!r}")
+
+
+# ---------------------------------------------------------------------------
+# Parse helpers
+# ---------------------------------------------------------------------------
+
+
+def _parse_mode(response: str, channel: int) -> Mode:
+    """Extract a :class:`Mode` value from a ``?MODE`` response."""
+    mode_str = response.replace("#", "").strip()
+    try:
+        return Mode(int(mode_str))
+    except (ValueError, TypeError) as exc:
+        raise CommandError(f"Unexpected mode response for channel {channel}: {response!r}") from exc
+
+
+def _parse_normal_params(response: str) -> tuple[int, int]:
+    """Extract ``(max_current_ma, set_current_ma)`` from a ``?CURRENT`` response."""
+    parts = response.replace("#", "").split()
+    if len(parts) < 2:
+        raise CommandError(f"Cannot parse normal params from {response!r}")
+    try:
+        return int(parts[-2]), int(parts[-1])
+    except (ValueError, TypeError) as exc:
+        raise CommandError(f"Cannot parse normal params from {response!r}") from exc
+
+
+def _parse_load_voltage(response: str) -> int:
+    """Extract a millivolt value from a ``LoadVoltage`` response."""
+    try:
+        return int(response.split(":")[1])
+    except (IndexError, ValueError) as exc:
+        raise CommandError(f"Cannot parse load voltage from {response!r}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +197,7 @@ class SLCProtocol:
     def __init__(self, transport: SerialTransport) -> None:
         self._tx = transport
 
-    # -- Helpers ------------------------------------------------------------
+    # -- Transport helpers --------------------------------------------------
 
     def _cmd(self, cmd: str) -> str:
         """Send *cmd* through the transport, check for errors, and return."""
@@ -203,34 +220,19 @@ class SLCProtocol:
         """Return the current operating mode of *channel*."""
         _validate_channel(channel)
         response = self._cmd(f"?MODE {channel}")
-        mode_str = response.replace("#", "").strip()
-        try:
-            return Mode(int(mode_str))
-        except (ValueError, TypeError) as exc:
-            raise CommandError(
-                f"Unexpected mode response for channel {channel}: {response!r}"
-            ) from exc
+        return _parse_mode(response, channel)
 
     def get_normal_params(self, channel: int) -> tuple[int, int]:
         """Return ``(max_current_ma, set_current_ma)`` for *channel*."""
         _validate_channel(channel)
         response = self._cmd(f"?CURRENT {channel}")
-        parts = response.replace("#", "").split()
-        if len(parts) < 2:
-            raise CommandError(f"Cannot parse normal params from {response!r}")
-        try:
-            return int(parts[-2]), int(parts[-1])
-        except (ValueError, TypeError) as exc:
-            raise CommandError(f"Cannot parse normal params from {response!r}") from exc
+        return _parse_normal_params(response)
 
     def get_load_voltage(self, channel: int) -> int:
         """Return the LED load voltage for *channel* in millivolts."""
         _validate_channel(channel)
         response = self._cmd(f"LoadVoltage {channel}")
-        try:
-            return int(response.split(":")[1])
-        except (IndexError, ValueError) as exc:
-            raise CommandError(f"Cannot parse load voltage from {response!r}") from exc
+        return _parse_load_voltage(response)
 
     # -- Mode control -------------------------------------------------------
 
@@ -277,8 +279,7 @@ class SLCProtocol:
         """
         _validate_channel(channel)
         _validate_current(max_current_ma, MAX_CURRENT_PULSED_MA, "max_current_ma")
-        if repeat < 0:
-            raise ValidationError(f"Repeat must be >= 0, got {repeat}")
+        _validate_repeat(repeat)
         self._cmd_ack(f"STROBE {channel} {max_current_ma} {repeat}")
 
     def set_strobe_step(self, channel: int, step: int, current_ma: int, duration_us: int) -> None:
@@ -338,4 +339,5 @@ class SLCProtocol:
 
     def echo_off(self) -> None:
         """Disable command echo (recommended for programmatic use)."""
+        # Intentionally bypasses _cmd_ack — the controller does not ack ECHOOFF
         self._tx.send("ECHOOFF")
