@@ -16,7 +16,7 @@ This project provides a clean Python API for controlling Mightex SLC series LED 
 - ✅ Context manager support for automatic cleanup
 - ✅ All 4 operating modes (DISABLE, NORMAL, STROBE, TRIGGER)
 - ✅ Custom exception hierarchy for clear error handling
-- ✅ Input validation with descriptive error messages
+- ✅ Mode-specific current validation matching datasheet limits
 - ✅ Robust serial I/O with terminator-based reads and buffer hygiene
 - ✅ `logging` integration for debugging
 - ✅ Comprehensive test suite (runs without hardware via mock serial)
@@ -212,6 +212,18 @@ pytest -m hardware
 
 These require a real SLC controller on `/dev/ttyUSB0`. They verify actual device communication, mode round-trips, and parameter persistence.
 
+## Current Limits
+
+Current validation is **mode-specific**, matching the SLC-SA04 datasheet:
+
+| Mode | Max Current | Applies to |
+|------|------------|------------|
+| **NORMAL** | 1000 mA | `set_normal_mode()`, `set_current()`, `enable_channel()` |
+| **STROBE** | 3500 mA | `set_strobe_params()`, `set_strobe_step()` |
+| **TRIGGER** | 3500 mA | `set_trigger_params()`, `set_trigger_step()` |
+
+`enable_channel()` defaults `max_current_ma` to `2 × current_ma`. If this exceeds 1000 mA, a `ValidationError` is raised — pass an explicit `max_current_ma` instead.
+
 ## API Reference
 
 ### Exceptions
@@ -229,9 +241,9 @@ All exceptions inherit from `MightexError`:
 
 ```python
 Mode.DISABLE  # 0 — LED off
-Mode.NORMAL   # 1 — Constant current
-Mode.STROBE   # 2 — Programmed profile
-Mode.TRIGGER  # 3 — External trigger
+Mode.NORMAL   # 1 — Constant current (max 1000 mA)
+Mode.STROBE   # 2 — Programmed profile (max 3500 mA)
+Mode.TRIGGER  # 3 — External trigger (max 3500 mA)
 ```
 
 ### MightexSLC Methods

@@ -84,9 +84,10 @@ class DeviceInfo:
 
 _MIN_CHANNEL = 1
 _MAX_CHANNEL = 4
-_MAX_CURRENT_MA = 2000  # conservative upper bound for SA modules
 _MAX_STEP = 127  # max profile steps per Mightex SDK docs
 _MAX_DURATION_US = 99_999_999  # practical upper bound for step duration
+MAX_CURRENT_NORMAL_MA = 1000  # NORMAL (constant-current) mode ceiling
+MAX_CURRENT_PULSED_MA = 3500  # STROBE and TRIGGER mode ceiling
 
 
 def _validate_channel(channel: int) -> None:
@@ -94,9 +95,19 @@ def _validate_channel(channel: int) -> None:
         raise ValidationError(f"Channel must be {_MIN_CHANNEL}-{_MAX_CHANNEL}, got {channel}")
 
 
-def _validate_current(current_ma: int, label: str = "current") -> None:
-    if not (0 <= current_ma <= _MAX_CURRENT_MA):
-        raise ValidationError(f"{label} must be 0-{_MAX_CURRENT_MA} mA, got {current_ma}")
+def _validate_current(current_ma: int, max_ma: int, label: str = "current") -> None:
+    """Validate that *current_ma* is within ``0..max_ma``.
+
+    Args:
+        current_ma: The current value to validate.
+        max_ma: Upper bound in mA (mode-specific).
+        label: Human-readable name for error messages.
+
+    Raises:
+        ValidationError: If *current_ma* is out of range.
+    """
+    if not (0 <= current_ma <= max_ma):
+        raise ValidationError(f"{label} must be 0-{max_ma} mA, got {current_ma}")
 
 
 def _validate_mode(mode: int) -> None:
@@ -232,10 +243,14 @@ class SLCProtocol:
     # -- Normal mode --------------------------------------------------------
 
     def set_normal_params(self, channel: int, max_current_ma: int, set_current_ma: int) -> None:
-        """Configure normal-mode parameters for *channel*."""
+        """Configure normal-mode parameters for *channel*.
+
+        Both *max_current_ma* and *set_current_ma* are validated against the
+        NORMAL-mode ceiling of :data:`MAX_CURRENT_NORMAL_MA` (1000 mA).
+        """
         _validate_channel(channel)
-        _validate_current(max_current_ma, "max_current_ma")
-        _validate_current(set_current_ma, "set_current_ma")
+        _validate_current(max_current_ma, MAX_CURRENT_NORMAL_MA, "max_current_ma")
+        _validate_current(set_current_ma, MAX_CURRENT_NORMAL_MA, "set_current_ma")
         if set_current_ma > max_current_ma:
             raise ValidationError(
                 f"set_current_ma ({set_current_ma}) cannot exceed max_current_ma ({max_current_ma})"
@@ -243,26 +258,38 @@ class SLCProtocol:
         self._cmd_ack(f"NORMAL {channel} {max_current_ma} {set_current_ma}")
 
     def set_current(self, channel: int, current_ma: int) -> None:
-        """Quick-set working current (channel must already be in NORMAL mode)."""
+        """Quick-set working current (channel must already be in NORMAL mode).
+
+        Validated against the NORMAL-mode ceiling of
+        :data:`MAX_CURRENT_NORMAL_MA` (1000 mA).
+        """
         _validate_channel(channel)
-        _validate_current(current_ma)
+        _validate_current(current_ma, MAX_CURRENT_NORMAL_MA)
         self._cmd_ack(f"CURRENT {channel} {current_ma}")
 
     # -- Strobe mode --------------------------------------------------------
 
     def set_strobe_params(self, channel: int, max_current_ma: int, repeat: int) -> None:
-        """Configure strobe mode for *channel*."""
+        """Configure strobe mode for *channel*.
+
+        *max_current_ma* is validated against the pulsed-mode ceiling of
+        :data:`MAX_CURRENT_PULSED_MA` (3500 mA).
+        """
         _validate_channel(channel)
-        _validate_current(max_current_ma, "max_current_ma")
+        _validate_current(max_current_ma, MAX_CURRENT_PULSED_MA, "max_current_ma")
         if repeat < 0:
             raise ValidationError(f"Repeat must be >= 0, got {repeat}")
         self._cmd_ack(f"STROBE {channel} {max_current_ma} {repeat}")
 
     def set_strobe_step(self, channel: int, step: int, current_ma: int, duration_us: int) -> None:
-        """Set a single strobe profile step."""
+        """Set a single strobe profile step.
+
+        *current_ma* is validated against the pulsed-mode ceiling of
+        :data:`MAX_CURRENT_PULSED_MA` (3500 mA).
+        """
         _validate_channel(channel)
         _validate_step(step)
-        _validate_current(current_ma, "current_ma")
+        _validate_current(current_ma, MAX_CURRENT_PULSED_MA, "current_ma")
         _validate_duration(duration_us)
         self._cmd_ack(f"STRP {channel} {step} {current_ma} {duration_us}")
 
@@ -274,16 +301,24 @@ class SLCProtocol:
         max_current_ma: int,
         polarity: TriggerPolarity = TriggerPolarity.RISING,
     ) -> None:
-        """Configure trigger mode for *channel*."""
+        """Configure trigger mode for *channel*.
+
+        *max_current_ma* is validated against the pulsed-mode ceiling of
+        :data:`MAX_CURRENT_PULSED_MA` (3500 mA).
+        """
         _validate_channel(channel)
-        _validate_current(max_current_ma, "max_current_ma")
+        _validate_current(max_current_ma, MAX_CURRENT_PULSED_MA, "max_current_ma")
         self._cmd_ack(f"TRIGGER {channel} {max_current_ma} {int(polarity)}")
 
     def set_trigger_step(self, channel: int, step: int, current_ma: int, duration_us: int) -> None:
-        """Set a single trigger profile step."""
+        """Set a single trigger profile step.
+
+        *current_ma* is validated against the pulsed-mode ceiling of
+        :data:`MAX_CURRENT_PULSED_MA` (3500 mA).
+        """
         _validate_channel(channel)
         _validate_step(step)
-        _validate_current(current_ma, "current_ma")
+        _validate_current(current_ma, MAX_CURRENT_PULSED_MA, "current_ma")
         _validate_duration(duration_us)
         self._cmd_ack(f"TRIGP {channel} {step} {current_ma} {duration_us}")
 

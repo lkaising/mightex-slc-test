@@ -19,6 +19,16 @@ Quick reference for RS232 commands. For Python API, see README.md.
 | `#data` | Command successful with data response |
 | `xxxx is not defined` | Invalid command |
 
+## Current Limits (per datasheet)
+
+| Mode | Max Current | Notes |
+|------|------------|-------|
+| **NORMAL** (constant-current) | 1000 mA | Applies to `NORMAL` Imax/Iset and `CURRENT` Iset |
+| **STROBE** (pulsed) | 3500 mA | Applies to `STROBE` Imax and `STRP` step Iset |
+| **TRIGGER** (pulsed) | 3500 mA | Applies to `TRIGGER` Imax and `TRIGP` step Iset |
+
+The Python API validates against these limits before sending commands to the device.
+
 ## Essential Commands
 
 ### Echo Control
@@ -48,9 +58,9 @@ MODE CHLno mode         Set mode
 
 **Mode Values:**
 - `0` = DISABLE (off)
-- `1` = NORMAL (constant current)
-- `2` = STROBE (programmed profile)
-- `3` = TRIGGER (external trigger)
+- `1` = NORMAL (constant current, max 1000 mA)
+- `2` = STROBE (programmed profile, max 3500 mA)
+- `3` = TRIGGER (external trigger, max 3500 mA)
 
 **Examples:**
 ```
@@ -60,6 +70,8 @@ MODE 1 0                Disable channel 1
 ```
 
 ### Normal Mode (Constant Current)
+
+Max current: **1000 mA**
 
 ```
 NORMAL CHLno Imax Iset     Set normal mode parameters (mA)
@@ -82,9 +94,11 @@ Response format for `?CURRENT`:
 
 ### Strobe Mode (Timed Profiles)
 
+Max current: **3500 mA**
+
 ```
 STROBE CHLno Imax Repeat       Set strobe parameters
-STRP CHLno STPno Iset Tset    Set profile step
+STRP CHLno STPno Iset Tset     Set profile step
 ?STROBE CHLno                  Query strobe parameters
 ?STRP CHLno                    Query profile
 ```
@@ -92,17 +106,19 @@ STRP CHLno STPno Iset Tset    Set profile step
 **Examples:**
 ```
 STROBE 1 100 5              Imax=100mA, repeat 5 times
-STRP 1 0 50 2000           Step 0: 50mA for 2000μs
-STRP 1 1 10 100000         Step 1: 10mA for 100000μs
-STRP 1 2 0 0               Step 2: End marker
+STRP 1 0 50 2000            Step 0: 50mA for 2000μs
+STRP 1 1 10 100000          Step 1: 10mA for 100000μs
+STRP 1 2 0 0                Step 2: End marker
 MODE 1 2                    Start strobe on channel 1
 ```
 
 ### Trigger Mode (External Trigger)
 
+Max current: **3500 mA**
+
 ```
 TRIGGER CHLno Imax Polarity    Set trigger parameters
-TRIGP CHLno STPno Iset Tset   Set trigger profile step
+TRIGP CHLno STPno Iset Tset    Set trigger profile step
 ?TRIGGER CHLno                 Query trigger parameters
 ?TRIGP CHLno                   Query trigger profile
 ```
@@ -114,8 +130,8 @@ TRIGP CHLno STPno Iset Tset   Set trigger profile step
 **Examples:**
 ```
 TRIGGER 1 100 0            Imax=100mA, rising edge
-TRIGP 1 0 50 2000         Step 0: 50mA for 2000μs
-TRIGP 1 1 0 0             Step 1: End marker
+TRIGP 1 0 50 2000          Step 0: 50mA for 2000μs
+TRIGP 1 1 0 0              Step 1: End marker
 MODE 1 3                   Enable trigger mode
 ```
 
@@ -124,8 +140,8 @@ MODE 1 3                   Enable trigger mode
 ```
 STORE                Save current settings to non-volatile memory
 RESET                Soft reset device
-RESTOREDEF          Restore factory defaults
-LoadVoltage CHLno   Get load voltage (returns: #CHLno:vvvvv in mV)
+RESTOREDEF           Restore factory defaults
+LoadVoltage CHLno    Get load voltage (returns: #CHLno:vvvvv in mV)
 ```
 
 ## Channel Numbering

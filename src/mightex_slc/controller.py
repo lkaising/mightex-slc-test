@@ -138,7 +138,10 @@ class MightexSLC:
     ) -> bool:
         """Enable *channel* in NORMAL mode at *current_ma*.
 
-        If *max_current_ma* is not given it defaults to ``2 x current_ma``.
+        If *max_current_ma* is not given it defaults to ``2 × current_ma``.
+        All current values are validated against the NORMAL-mode ceiling
+        (1000 mA) by :meth:`set_normal_mode`.
+
         Returns ``True`` on success.  Raises on any failure.
         """
         if max_current_ma is None:
