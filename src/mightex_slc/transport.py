@@ -1,16 +1,13 @@
 """
 Serial transport layer for the Mightex SLC LED controller.
 
-Handles the physical serial connection, byte framing, read-loop with
-terminator detection, and buffer hygiene.  Knows nothing about what
-commands mean — that's :mod:`protocol`'s job.
+This module owns the physical serial connection and byte-level I/O:
+- opens/closes the serial port
+- frames outbound commands
+- reads responses with terminator detection
+- performs basic buffer hygiene
 
-Typical usage (via :class:`~mightex_slc.controller.MightexSLC`)::
-
-    transport = SerialTransport("/dev/ttyUSB0")
-    transport.open()
-    response = transport.send("DEVICEINFO")
-    transport.close()
+It deliberately does not interpret command meaning; that belongs in the protocol/controller layers.
 """
 
 from __future__ import annotations
@@ -24,9 +21,13 @@ from .exceptions import ConnectionError, TimeoutError
 
 logger = logging.getLogger(__name__)
 
-# Protocol framing constants
-_CMD_TERMINATOR = b"\n\r"  # LF + CR — what we append to outgoing commands
-_RESP_TERMINATOR = b"\r"  # CR — what the device ends responses with
+# Protocol framing
+_CMD_TERMINATOR = b"\n\r"  # what we append to outgoing commands (LF + CR)
+_RESP_TERMINATOR = b"\r"  # what the device ends responses with (CR)
+
+# Implementation details
+_ENCODING = "ascii"
+_DRAIN_DELAY_S = 0.02
 
 
 class SerialTransport:
@@ -35,8 +36,8 @@ class SerialTransport:
     Args:
         port: Serial port path (e.g. ``/dev/ttyUSB0``).
         baudrate: Baud rate (default 9600).
-        timeout: Per-read timeout in seconds.  Also serves as the upper
-            bound on how long :meth:`send` will wait for a response.
+        timeout: Per-read timeout in seconds. Also acts as the upper bound
+                 for waiting on a response in :meth:`send`.
     """
 
     def __init__(
@@ -58,9 +59,12 @@ class SerialTransport:
         Raises:
             ConnectionError: If the port cannot be opened.
         """
+        if self.is_open:
+            return
+
         logger.info("Opening serial port %s at %d baud", self.port, self.baudrate)
         try:
-            self._ser = serial.Serial(
+            ser = serial.Serial(
                 port=self.port,
                 baudrate=self.baudrate,
                 bytesize=serial.EIGHTBITS,
@@ -71,35 +75,39 @@ class SerialTransport:
         except serial.SerialException as exc:
             raise ConnectionError(f"Cannot open {self.port}: {exc}") from exc
 
+        self._ser = ser
+
     def close(self) -> None:
         """Close the serial port (safe to call multiple times)."""
-        if self._ser and self._ser.is_open:
-            self._ser.close()
+        ser, self._ser = self._ser, None
+        if ser is None:
+            return
+        if ser.is_open:
+            ser.close()
             logger.info("Serial port %s closed", self.port)
 
     @property
     def is_open(self) -> bool:
-        """Return ``True`` if the serial port is currently open."""
+        """True if the serial port is currently open."""
         return self._ser is not None and self._ser.is_open
+
+    def __enter__(self) -> SerialTransport:
+        self.open()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
 
     # -- I/O ----------------------------------------------------------------
 
     def send(self, cmd: str) -> str:
-        """Send *cmd* and return the controller's decoded response.
-
-        Steps:
-            1. Flush any stale bytes from the input buffer.
-            2. Write the command with ``LF CR`` termination.
-            3. Flush the output buffer to ensure bytes leave the process.
-            4. Read until a response terminator (``CR``) is received or the
-               serial timeout expires.
-            5. Decode and strip the response.
+        """Send *cmd* and return the decoded response.
 
         Args:
             cmd: Command string without termination characters.
 
         Returns:
-            Decoded response with whitespace stripped.
+            Decoded response with surrounding whitespace stripped.
 
         Raises:
             ConnectionError: If the port is not open.
@@ -108,20 +116,12 @@ class SerialTransport:
         ser = self._require_open()
         logger.debug("TX: %s", cmd)
 
-        # 1. Discard stale bytes from previous commands
         ser.reset_input_buffer()
-
-        # 2. Write command
-        ser.write(f"{cmd}".encode("ascii") + _CMD_TERMINATOR)
-
-        # 3. Ensure bytes leave the OS buffer
+        ser.write(cmd.encode(_ENCODING) + _CMD_TERMINATOR)
         ser.flush()
 
-        # 4. Read until terminator or timeout
         raw = self._read_response(ser)
-
-        # 5. Decode
-        response = raw.decode("ascii", errors="replace").strip()
+        response = raw.decode(_ENCODING, errors="replace").strip()
         logger.debug("RX: %s", response)
 
         if not response:
@@ -129,31 +129,25 @@ class SerialTransport:
 
         return response
 
-    # -- Internal -----------------------------------------------------------
+    # -- Internals ----------------------------------------------------------
 
     def _require_open(self) -> serial.Serial:
         """Return the open serial port or raise."""
         if not self.is_open:
             raise ConnectionError("Serial port not open — call open() first.")
-        assert self._ser is not None  # for type-checker
+        assert self._ser is not None  # for type-checkers
         return self._ser
 
     def _read_response(self, ser: serial.Serial) -> bytes:
-        """Read bytes until the response terminator or timeout.
+        """Read bytes until the response terminator or the serial timeout.
 
-        Uses ``read_until`` with a deadline so we never hang indefinitely,
-        even if the device sends data without a clean terminator.
-
-        Falls back to a small inter-byte-timeout drain to catch any trailing
-        bytes that arrive after the terminator (e.g. multi-line responses).
+        Uses ``read_until`` (bounded by the serial driver's timeout), then
+        performs a small best-effort drain to capture any bytes that arrive
+        immediately after the terminator.
         """
-        # read_until blocks until it sees the terminator or the serial
-        # timeout expires — exactly the behaviour we want.
         data = ser.read_until(_RESP_TERMINATOR)
 
-        # Drain any trailing bytes (e.g. a LF after the CR) with a very
-        # short pause so we don't leave garbage for the next command.
-        time.sleep(0.02)
+        time.sleep(_DRAIN_DELAY_S)
         extra = ser.in_waiting
         if extra:
             data += ser.read(extra)
