@@ -17,8 +17,23 @@ Example::
 
 from __future__ import annotations
 
-from .protocol import DeviceInfo, Mode, SLCProtocol, TriggerPolarity
+from .protocol import (
+    MAX_CURRENT_NORMAL_MA,
+    DeviceInfo,
+    Mode,
+    SLCProtocol,
+    TriggerPolarity,
+)
 from .transport import SerialTransport
+
+# ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+
+DEFAULT_PORT = "/dev/ttyUSB0"
+DEFAULT_BAUD = 9600
+DEFAULT_TIMEOUT = 1.0
+DEFAULT_MAX_CURRENT_MA = MAX_CURRENT_NORMAL_MA  # NORMAL-mode safety ceiling for enable_channel
 
 
 class MightexSLC:
@@ -38,9 +53,9 @@ class MightexSLC:
 
     def __init__(
         self,
-        port: str = "/dev/ttyUSB0",
-        baud: int = 9600,
-        timeout: float = 1.0,
+        port: str = DEFAULT_PORT,
+        baud: int = DEFAULT_BAUD,
+        timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
         self._transport = SerialTransport(port=port, baudrate=baud, timeout=timeout)
         self._proto: SLCProtocol | None = None
@@ -57,14 +72,25 @@ class MightexSLC:
     # -- Connection ---------------------------------------------------------
 
     def connect(self) -> None:
-        """Open the serial connection and disable command echo."""
+        """Open the serial connection and disable command echo.
+
+        Safe to call when already connected (returns immediately).
+        """
+        if self.is_connected:
+            return
         self._transport.open()
         self._proto = SLCProtocol(self._transport)
         self._proto.echo_off()
 
     def disconnect(self) -> None:
-        """Close the serial connection (safe to call multiple times)."""
+        """Close the serial connection.
+
+        Clears the protocol reference so that subsequent commands fail
+        with a clear "Not connected" error rather than a transport-level
+        error on a closed port.  Safe to call repeatedly.
+        """
         self._transport.close()
+        self._proto = None
 
     @property
     def is_connected(self) -> bool:
@@ -134,7 +160,7 @@ class MightexSLC:
         self,
         channel: int,
         current_ma: int,
-        max_current_ma: int = 1000,
+        max_current_ma: int = DEFAULT_MAX_CURRENT_MA,
     ) -> bool:
         """Enable *channel* in NORMAL mode at *current_ma*.
 
@@ -242,7 +268,7 @@ class MightexSLC:
 # ---------------------------------------------------------------------------
 
 
-def get_controller(port: str = "/dev/ttyUSB0") -> MightexSLC:
+def get_controller(port: str = DEFAULT_PORT) -> MightexSLC:
     """Return a controller instance (use as a context manager).
 
     Example::
