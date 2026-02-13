@@ -1,16 +1,14 @@
 """Mightex SLC LED Controller Python Interface"""
 
-from .controller import (
+from .controller import MightexSLC, get_controller
+from .exceptions import (
     CommandError,
     ConnectionError,
-    DeviceInfo,
     MightexError,
-    MightexSLC,
-    Mode,
-    TriggerPolarity,
+    TimeoutError,
     ValidationError,
-    get_controller,
 )
+from .protocol import DeviceInfo, Mode, TriggerPolarity
 
 __all__ = [
     "CommandError",
@@ -19,6 +17,7 @@ __all__ = [
     "MightexError",
     "MightexSLC",
     "Mode",
+    "TimeoutError",
     "TriggerPolarity",
     "ValidationError",
     "get_controller",

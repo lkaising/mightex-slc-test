@@ -17,25 +17,48 @@ This project provides a clean Python API for controlling Mightex SLC series LED 
 - ✅ All 4 operating modes (DISABLE, NORMAL, STROBE, TRIGGER)
 - ✅ Custom exception hierarchy for clear error handling
 - ✅ Input validation with descriptive error messages
+- ✅ Robust serial I/O with terminator-based reads and buffer hygiene
 - ✅ `logging` integration for debugging
 - ✅ Comprehensive test suite (runs without hardware via mock serial)
+
+## Architecture
+
+The package is split into three layers:
+
+```
+┌─────────────────────────────────────────┐
+│  controller.py  — User-facing API       │
+│  (MightexSLC, enable_channel, etc.)     │
+├─────────────────────────────────────────┤
+│  protocol.py    — Commands & parsing    │
+│  (ack checking, validation, enums)      │
+├─────────────────────────────────────────┤
+│  transport.py   — Serial I/O            │
+│  (framing, timeouts, buffer hygiene)    │
+├─────────────────────────────────────────┤
+│  exceptions.py  — Error hierarchy       │
+└─────────────────────────────────────────┘
+```
 
 ## Project Structure
 
 ```
 mightex-slc-test/
 ├── src/
-│   └── mightex_slc/          # Main controller module
-│       ├── __init__.py
-│       └── controller.py
+│   └── mightex_slc/
+│       ├── __init__.py        # Public API exports
+│       ├── exceptions.py      # Exception hierarchy
+│       ├── transport.py       # Serial I/O layer
+│       ├── protocol.py        # Command building & parsing
+│       └── controller.py      # User-facing API
 ├── scripts/
-│   └── example_usage.py      # Usage examples
+│   └── example_usage.py       # Usage examples
 ├── tests/
-│   ├── conftest.py           # Shared fixtures (mock serial)
-│   └── test_controller.py    # Unit + integration tests
+│   ├── conftest.py            # Shared fixtures (mock serial)
+│   └── test_controller.py     # Unit + integration tests
 ├── docs/
-│   └── command_reference.md  # Low-level RS232 command reference
-├── pyproject.toml            # Project config & dependencies
+│   └── command_reference.md   # Low-level RS232 command reference
+├── pyproject.toml             # Project config & dependencies
 └── README.md
 ```
 
@@ -133,13 +156,15 @@ with MightexSLC('/dev/ttyUSB0') as led:
 ### Error Handling
 
 ```python
-from mightex_slc import MightexSLC, ConnectionError, ValidationError
+from mightex_slc import MightexSLC, ConnectionError, TimeoutError, ValidationError
 
 try:
     with MightexSLC('/dev/ttyUSB0') as led:
         led.enable_channel(1, current_ma=50)
 except ConnectionError as e:
     print(f"Cannot connect: {e}")
+except TimeoutError as e:
+    print(f"Device not responding: {e}")
 except ValidationError as e:
     print(f"Bad parameter: {e}")
 ```
@@ -177,7 +202,7 @@ with MightexSLC('/dev/ttyUSB0') as led:
 pytest
 ```
 
-Unit tests use a mock serial port and run anywhere. All parsing, validation, command formatting, and error-handling paths are covered.
+Unit tests use a mock serial port and run anywhere. Tests are organized by layer: transport I/O, protocol parsing/validation, and controller convenience methods.
 
 ### Hardware Integration Tests
 
@@ -196,8 +221,9 @@ All exceptions inherit from `MightexError`:
 | Exception | When |
 |---|---|
 | `ConnectionError` | Serial port unavailable or closed |
-| `CommandError` | Controller returns `#!`, `#?`, or undefined command |
-| `ValidationError` | Invalid channel, current, or mode before sending |
+| `TimeoutError` | Controller does not respond within timeout window |
+| `CommandError` | Controller returns `#!`, `#?`, undefined command, or unexpected response |
+| `ValidationError` | Invalid channel, current, mode, step, or duration before sending |
 
 ### Mode Enum
 
