@@ -134,19 +134,16 @@ class MightexSLC:
         self,
         channel: int,
         current_ma: int,
-        max_current_ma: int | None = None,
+        max_current_ma: int = 1000,
     ) -> bool:
         """Enable *channel* in NORMAL mode at *current_ma*.
 
-        If *max_current_ma* is not given it defaults to ``2 × current_ma``.
-        All current values are validated against the NORMAL-mode ceiling
-        (1000 mA) by :meth:`set_normal_mode`.
+        *max_current_ma* sets the per-channel safety ceiling (Imax) and
+        defaults to the NORMAL-mode maximum of 1000 mA.  Set it lower to
+        match your LED's rating and prevent accidental over-driving.
 
         Returns ``True`` on success.  Raises on any failure.
         """
-        if max_current_ma is None:
-            max_current_ma = current_ma * 2
-
         self.set_normal_mode(channel, max_current_ma, current_ma)
         self.set_mode(channel, Mode.NORMAL)
         return True

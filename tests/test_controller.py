@@ -454,16 +454,11 @@ class TestControllerConvenience:
 
     def test_enable_channel_default_max(self, controller, fake_serial):
         assert controller.enable_channel(1, current_ma=50) is True
-        assert any(b"NORMAL 1 100 50" in w for w in fake_serial.written)
+        assert any(b"NORMAL 1 1000 50" in w for w in fake_serial.written)
 
     def test_enable_channel_explicit_max(self, controller, fake_serial):
         assert controller.enable_channel(1, current_ma=50, max_current_ma=200) is True
         assert any(b"NORMAL 1 200 50" in w for w in fake_serial.written)
-
-    def test_enable_channel_default_max_exceeds_normal_limit(self, controller, fake_serial):
-        """When 2 x current_ma > 1000, the default should fail validation."""
-        with pytest.raises(ValidationError, match="0-1000"):
-            controller.enable_channel(1, current_ma=600)  # default max = 1200 > 1000
 
     def test_enable_channel_explicit_max_at_normal_limit(self, controller, fake_serial):
         """Explicit max_current_ma at the NORMAL ceiling should succeed."""

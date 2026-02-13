@@ -222,7 +222,7 @@ Current validation is **mode-specific**, matching the SLC-SA04 datasheet:
 | **STROBE** | 3500 mA | `set_strobe_params()`, `set_strobe_step()` |
 | **TRIGGER** | 3500 mA | `set_trigger_params()`, `set_trigger_step()` |
 
-`enable_channel()` defaults `max_current_ma` to `2 × current_ma`. If this exceeds 1000 mA, a `ValidationError` is raised — pass an explicit `max_current_ma` instead.
+`enable_channel()` defaults `max_current_ma` to 1000 mA (the NORMAL-mode ceiling). Pass a lower value to match your LED's rating and prevent accidental over-driving.
 
 ## API Reference
 
