@@ -91,12 +91,12 @@ _MAX_DURATION_US = 99_999_999  # practical upper bound for step duration
 
 def _validate_channel(channel: int) -> None:
     if not (_MIN_CHANNEL <= channel <= _MAX_CHANNEL):
-        raise ValidationError(f"Channel must be {_MIN_CHANNEL}–{_MAX_CHANNEL}, got {channel}")
+        raise ValidationError(f"Channel must be {_MIN_CHANNEL}-{_MAX_CHANNEL}, got {channel}")
 
 
 def _validate_current(current_ma: int, label: str = "current") -> None:
     if not (0 <= current_ma <= _MAX_CURRENT_MA):
-        raise ValidationError(f"{label} must be 0–{_MAX_CURRENT_MA} mA, got {current_ma}")
+        raise ValidationError(f"{label} must be 0-{_MAX_CURRENT_MA} mA, got {current_ma}")
 
 
 def _validate_mode(mode: int) -> None:
@@ -108,12 +108,12 @@ def _validate_mode(mode: int) -> None:
 
 def _validate_step(step: int) -> None:
     if not (0 <= step <= _MAX_STEP):
-        raise ValidationError(f"Step must be 0–{_MAX_STEP}, got {step}")
+        raise ValidationError(f"Step must be 0-{_MAX_STEP}, got {step}")
 
 
 def _validate_duration(duration_us: int) -> None:
     if not (0 <= duration_us <= _MAX_DURATION_US):
-        raise ValidationError(f"Duration must be 0–{_MAX_DURATION_US} µs, got {duration_us}")
+        raise ValidationError(f"Duration must be 0-{_MAX_DURATION_US} µs, got {duration_us}")
 
 
 # ---------------------------------------------------------------------------
