@@ -15,6 +15,7 @@ MAX_STEP = 127
 MAX_DURATION_US = 99_999_999
 MAX_CURRENT_NORMAL_MA = 1000
 MAX_CURRENT_PULSED_MA = 3500
+FOLLOWER_DURATION_US = 9999  # Special Tset value: output follows trigger input level
 
 # ---------------------------------------------------------------------------
 # Controller / runtime defaults

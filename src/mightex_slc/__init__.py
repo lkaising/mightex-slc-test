@@ -1,6 +1,7 @@
 """Mightex SLC LED Controller Python Interface"""
 
 from .constants import (
+    FOLLOWER_DURATION_US,
     MAX_CURRENT_NORMAL_MA,
     MAX_CURRENT_PULSED_MA,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "CommandError",
     "ConnectionError",
     "DeviceInfo",
+    "FOLLOWER_DURATION_US",
     "MightexError",
     "MightexSLC",
     "Mode",

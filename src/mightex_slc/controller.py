@@ -21,6 +21,7 @@ from .constants import (
     DEFAULT_BAUD,
     DEFAULT_PORT,
     DEFAULT_TIMEOUT,
+    FOLLOWER_DURATION_US,
     MAX_CURRENT_NORMAL_MA,
 )
 from .protocol import (
@@ -230,6 +231,49 @@ class MightexSLC:
         Returns ``True`` on success.  Raises on any failure.
         """
         self._p.set_trigger_step(channel, step, current_ma, duration_us)
+        return True
+
+    def set_trigger_follower(
+        self,
+        channel: int,
+        current_ma: int,
+        max_current_ma: int | None = None,
+        polarity: TriggerPolarity = TriggerPolarity.RISING,
+    ) -> bool:
+        """Configure *channel* for trigger follower mode.
+
+        In follower mode the LED is ON at *current_ma* while the trigger
+        input is HIGH, and OFF when the trigger input goes LOW.  This is
+        the recommended mode for frame-synchronized imaging systems where
+        an external controller (e.g. Arduino) drives the trigger pulse.
+
+        Executes the full safe programming sequence::
+
+            MODE ch 0                      # disable first
+            TRIGGER ch max_current polarity
+            TRIGP ch 0 current_ma 9999     # follower step
+            TRIGP ch 1 0 0                 # terminator
+            MODE ch 3                      # arm trigger mode
+
+        Args:
+            channel: SLC channel (1-4).
+            current_ma: LED drive current in mA.
+            max_current_ma: Per-channel current ceiling (Imax).  Defaults
+                to *current_ma* if not specified.
+            polarity: Trigger edge polarity (default: rising edge).
+
+        Returns ``True`` on success.  Raises on any failure.
+        """
+        if max_current_ma is None:
+            max_current_ma = current_ma
+
+        self.set_mode(channel, Mode.DISABLE)
+        self.set_trigger_params(channel, max_current_ma, polarity)
+        self.set_trigger_step(
+            channel, step=0, current_ma=current_ma, duration_us=FOLLOWER_DURATION_US
+        )
+        self.set_trigger_step(channel, step=1, current_ma=0, duration_us=0)
+        self.set_mode(channel, Mode.TRIGGER)
         return True
 
     # -- System -------------------------------------------------------------

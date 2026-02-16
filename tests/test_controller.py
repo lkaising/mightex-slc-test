@@ -26,6 +26,7 @@ from unittest.mock import patch
 import pytest
 
 from mightex_slc import (
+    FOLLOWER_DURATION_US,
     MAX_CURRENT_NORMAL_MA,
     MAX_CURRENT_PULSED_MA,
     CommandError,
@@ -537,6 +538,100 @@ class TestBackwardCompat:
         assert MightexSLC.MODE_NORMAL == 1
         assert MightexSLC.MODE_STROBE == 2
         assert MightexSLC.MODE_TRIGGER == 3
+
+
+class TestTriggerFollower:
+    """Tests for the set_trigger_follower convenience method."""
+
+    def test_returns_true_on_success(self, controller, fake_serial):
+        assert controller.set_trigger_follower(1, current_ma=1200) is True
+
+    def test_sends_five_commands_in_order(self, controller, fake_serial):
+        """Verify the full safe programming sequence from the spec."""
+        controller.set_trigger_follower(1, current_ma=1200)
+
+        cmds = [w.decode("ascii").rstrip("\n\r") for w in fake_serial.written]
+        assert cmds == [
+            "MODE 1 0",  # Step 1: disable
+            "TRIGGER 1 1200 0",  # Step 2: trigger params
+            "TRIGP 1 0 1200 9999",  # Step 3: follower step
+            "TRIGP 1 1 0 0",  # Step 4: terminator
+            "MODE 1 3",  # Step 5: arm trigger mode
+        ]
+
+    def test_uses_follower_duration_constant(self, controller, fake_serial):
+        """Confirm it uses FOLLOWER_DURATION_US (9999), not a magic number."""
+        controller.set_trigger_follower(1, current_ma=600)
+        trigp_cmd = [w for w in fake_serial.written if b"TRIGP 1 0" in w][0]
+        assert f"TRIGP 1 0 600 {FOLLOWER_DURATION_US}".encode() in trigp_cmd
+
+    def test_max_current_defaults_to_current(self, controller, fake_serial):
+        """When max_current_ma is omitted, Imax should equal Iset."""
+        controller.set_trigger_follower(2, current_ma=1000)
+        trigger_cmd = [w for w in fake_serial.written if b"TRIGGER 2" in w][0]
+        assert b"TRIGGER 2 1000 0" in trigger_cmd
+
+    def test_explicit_max_current(self, controller, fake_serial):
+        """When max_current_ma is specified, it should be used for Imax."""
+        controller.set_trigger_follower(1, current_ma=800, max_current_ma=1200)
+        trigger_cmd = [w for w in fake_serial.written if b"TRIGGER 1" in w][0]
+        assert b"TRIGGER 1 1200 0" in trigger_cmd
+        trigp_cmd = [w for w in fake_serial.written if b"TRIGP 1 0" in w][0]
+        assert b"TRIGP 1 0 800 9999" in trigp_cmd
+
+    def test_falling_edge_polarity(self, controller, fake_serial):
+        controller.set_trigger_follower(1, current_ma=600, polarity=TriggerPolarity.FALLING)
+        trigger_cmd = [w for w in fake_serial.written if b"TRIGGER 1" in w][0]
+        assert b"TRIGGER 1 600 1" in trigger_cmd
+
+    def test_invalid_channel_rejected(self, controller, fake_serial):
+        with pytest.raises(ValidationError):
+            controller.set_trigger_follower(0, current_ma=100)
+
+    def test_current_above_pulsed_max_rejected(self, controller, fake_serial):
+        with pytest.raises(ValidationError, match="0-3500"):
+            controller.set_trigger_follower(1, current_ma=MAX_CURRENT_PULSED_MA + 1)
+
+    def test_all_three_channels(self, controller, fake_serial):
+        """Program all three NIR channels in sequence — matches spec Section 10.2."""
+        controller.set_trigger_follower(1, current_ma=1200)
+        controller.set_trigger_follower(2, current_ma=1000)
+        controller.set_trigger_follower(3, current_ma=600)
+
+        cmds = [w.decode("ascii").rstrip("\n\r") for w in fake_serial.written]
+
+        # Channel 1
+        assert "MODE 1 0" in cmds
+        assert "TRIGGER 1 1200 0" in cmds
+        assert "TRIGP 1 0 1200 9999" in cmds
+        assert "TRIGP 1 1 0 0" in cmds
+        assert "MODE 1 3" in cmds
+
+        # Channel 2
+        assert "MODE 2 0" in cmds
+        assert "TRIGGER 2 1000 0" in cmds
+        assert "TRIGP 2 0 1000 9999" in cmds
+        assert "TRIGP 2 1 0 0" in cmds
+        assert "MODE 2 3" in cmds
+
+        # Channel 3
+        assert "MODE 3 0" in cmds
+        assert "TRIGGER 3 600 0" in cmds
+        assert "TRIGP 3 0 600 9999" in cmds
+        assert "TRIGP 3 1 0 0" in cmds
+        assert "MODE 3 3" in cmds
+
+
+class TestFollowerDurationConstant:
+    """Verify the FOLLOWER_DURATION_US constant is accessible and correct."""
+
+    def test_value(self):
+        assert FOLLOWER_DURATION_US == 9999
+
+    def test_importable_from_package(self):
+        from mightex_slc import FOLLOWER_DURATION_US as fdu
+
+        assert fdu == 9999
 
 
 # ══════════════════════════════════════════════════════════════════════════
