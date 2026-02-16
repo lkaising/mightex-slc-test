@@ -1,0 +1,59 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Mightex SLC Trigger Follower Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# This file defines the channel programming for trigger-follower mode.
+# The program_trigger.py script reads this file and programs the SLC
+# accordingly.
+#
+# Each channel entry maps directly to the SLC programming sequence:
+#   MODE ch 0                          (disable)
+#   TRIGGER ch max_current_ma polarity (set trigger params)
+#   TRIGP ch 0 current_ma 9999         (follower step)
+#   TRIGP ch 1 0 0                     (terminator)
+#   MODE ch 3                          (arm trigger mode)
+#
+# To add a fourth channel (e.g. 1300 nm), simply add a new entry under
+# channels: and update the Arduino firmware to modulo-4 sequencing.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Serial port for the SLC controller
+port: /dev/ttyUSB0
+
+# Whether to persist settings to non-volatile memory after programming.
+# When true, settings survive power cycles. Set to false during
+# experimentation to avoid wearing out NV memory.
+store: true
+
+channels:
+  1:
+    name: M850L3
+    wavelength_nm: 850
+    band: NIR-I
+    current_ma: 600
+    max_current_ma: 1200
+    polarity: rising
+
+  2:
+    name: M940L3
+    wavelength_nm: 940
+    band: NIR-I
+    current_ma: 500
+    max_current_ma: 1000
+    polarity: rising
+
+  3:
+    name: M1050L4
+    wavelength_nm: 1050
+    band: NIR-II
+    current_ma: 300
+    max_current_ma: 600
+    polarity: rising
+
+  # 4:
+  #   name: TBD
+  #   wavelength_nm: 1300
+  #   band: NIR-II
+  #   current_ma: TBD
+  #   max_current_ma: TBD
+  #   polarity: rising
