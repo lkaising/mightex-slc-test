@@ -248,8 +248,9 @@ def program_channel(controller: MightexSLC, ch: ChannelConfig) -> ChannelResult:
 def verify_channel(controller: MightexSLC, ch: ChannelConfig) -> ChannelResult:
     """Verify that a channel is programmed as expected.
 
-    Queries the channel's mode and trigger parameters, comparing against
-    the expected configuration.
+    Queries the channel's mode, trigger parameters, and trigger profile
+    via the controller's public API and compares each to the expected
+    configuration.
 
     Args:
         controller: A connected MightexSLC instance.
@@ -265,33 +266,21 @@ def verify_channel(controller: MightexSLC, ch: ChannelConfig) -> ChannelResult:
         if mode != Mode.TRIGGER:
             errors.append(f"mode is {mode.name}, expected TRIGGER")
 
-        # Check trigger parameters (Imax, polarity) via raw protocol query
-        proto = controller._p  # noqa: SLF001 — internal access for verification
-        response = proto._cmd(f"?TRIGGER {ch.channel}")  # noqa: SLF001
-        # Response format: #<Imax> <polarity>
-        parts = response.replace("#", "").split()
-        if len(parts) >= 2:
-            actual_imax = int(parts[0])
-            actual_polarity = int(parts[1])
-            if actual_imax != ch.max_current_ma:
-                errors.append(f"Imax is {actual_imax} mA, expected {ch.max_current_ma} mA")
-            if actual_polarity != int(ch.polarity):
-                errors.append(
-                    f"polarity is {actual_polarity}, expected {int(ch.polarity)} "
-                    f"({'rising' if ch.polarity == TriggerPolarity.RISING else 'falling'})"
-                )
-        else:
-            errors.append(f"could not parse ?TRIGGER response: {response!r}")
-
-        # Check trigger profile via raw protocol query
-        profile_response = proto._cmd(f"?TRIGP {ch.channel}")  # noqa: SLF001
-        # We check for the presence of the expected current value
-        # The exact response format varies, but should contain the programmed current
-        profile_clean = profile_response.replace("#", "").strip()
-        if str(ch.current_ma) not in profile_clean:
+        actual_imax, actual_polarity = controller.get_trigger_params(ch.channel)
+        if actual_imax != ch.max_current_ma:
+            errors.append(f"Imax is {actual_imax} mA, expected {ch.max_current_ma} mA")
+        if actual_polarity != ch.polarity:
+            polarity_name = "rising" if ch.polarity == TriggerPolarity.RISING else "falling"
             errors.append(
-                f"trigger profile does not contain expected current "
-                f"({ch.current_ma} mA): {profile_response!r}"
+                f"polarity is {int(actual_polarity)}, expected {int(ch.polarity)} ({polarity_name})"
+            )
+
+        profile = controller.get_trigger_profile(ch.channel)
+        if not profile:
+            errors.append("trigger profile is empty")
+        elif profile[0][0] != ch.current_ma:
+            errors.append(
+                f"trigger step 0 current is {profile[0][0]} mA, expected {ch.current_ma} mA"
             )
 
     except MightexError as exc:

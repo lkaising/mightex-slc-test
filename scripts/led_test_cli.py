@@ -18,11 +18,15 @@ import argparse
 import sys
 import time
 from contextlib import suppress
+from pathlib import Path
 
-# Add src to path so we can import without installing
-sys.path.insert(0, "src")
+# Allow running directly without installing the package
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from mightex_slc import MightexError, MightexSLC, Mode
+from _cli_ui import C, banner, confirm, fail, ok, prompt, prompt_int, warn  # noqa: E402
+
+from mightex_slc import MightexError, MightexSLC, Mode  # noqa: E402
 
 # ═══════════════════════════════════════
 #  LED / Channel Configuration
@@ -38,69 +42,6 @@ SAFE_DEFAULT_MA = 100  # Default current for quick tests
 HIGH_CURRENT_WARN_MA = 500  # Confirm before going above this
 
 
-# ═══════════════════════════════════════
-#  Terminal helpers
-# ═══════════════════════════════════════
-
-
-class C:
-    """ANSI color codes (no-op on non-TTY)."""
-
-    if sys.stdout.isatty():
-        BOLD = "\033[1m"
-        DIM = "\033[2m"
-        GREEN = "\033[32m"
-        YELLOW = "\033[33m"
-        RED = "\033[31m"
-        CYAN = "\033[36m"
-        RESET = "\033[0m"
-    else:
-        BOLD = DIM = GREEN = YELLOW = RED = CYAN = RESET = ""
-
-
-def banner(text: str) -> None:
-    print(f"\n{C.BOLD}{'═' * 60}")
-    print(f"  {text}")
-    print(f"{'═' * 60}{C.RESET}")
-
-
-def info(text: str) -> None:
-    print(f"  {C.GREEN}✓{C.RESET} {text}")
-
-
-def warn(text: str) -> None:
-    print(f"  {C.YELLOW}⚠{C.RESET} {text}")
-
-
-def error(text: str) -> None:
-    print(f"  {C.RED}✗{C.RESET} {text}")
-
-
-def prompt(text: str, default: str = "") -> str:
-    suffix = f" [{default}]" if default else ""
-    try:
-        val = input(f"  {text}{suffix}: ").strip()
-    except EOFError:
-        return default
-    return val if val else default
-
-
-def prompt_int(text: str, default: int | None = None) -> int | None:
-    """Prompt for an integer.  Returns None on empty input with no default."""
-    raw = prompt(text, str(default) if default is not None else "")
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        error(f"Invalid number: {raw}")
-        return None
-
-
-def confirm(text: str) -> bool:
-    return prompt(f"{text} (y/n)", "n").lower().startswith("y")
-
-
 def pick_channel() -> int | None:
     """Let the user choose a channel, showing the LED on each."""
     print()
@@ -111,7 +52,7 @@ def pick_channel() -> int | None:
         )
     val = prompt_int("Channel", default=1)
     if val not in LEDS:
-        error(f"Invalid channel: {val}")
+        fail(f"Invalid channel: {val}")
         return None
     return val
 
@@ -120,10 +61,10 @@ def validate_current(channel: int, current_ma: int) -> bool:
     """Check current against the LED's datasheet limit.  Warn if high."""
     led = LEDS[channel]
     if current_ma < 0:
-        error("Current cannot be negative.")
+        fail("Current cannot be negative.")
         return False
     if current_ma > led["max_ma"]:
-        error(f"{current_ma} mA exceeds {led['name']} maximum of {led['max_ma']} mA!")
+        fail(f"{current_ma} mA exceeds {led['name']} maximum of {led['max_ma']} mA!")
         return False
     if current_ma > HIGH_CURRENT_WARN_MA:
         warn(f"{current_ma} mA is above {HIGH_CURRENT_WARN_MA} mA.")
@@ -184,7 +125,7 @@ def do_quick_test(led: MightexSLC) -> None:
 
     try:
         led.enable_channel(ch, current_ma=current, max_current_ma=spec["max_ma"])
-        info(f"CH{ch} ON — {current} mA")
+        ok(f"CH{ch} ON — {current} mA")
 
         for i in range(3, 0, -1):
             print(f"    {i}...", end=" ", flush=True)
@@ -192,9 +133,9 @@ def do_quick_test(led: MightexSLC) -> None:
         print()
 
         led.disable_channel(ch)
-        info(f"CH{ch} OFF")
+        ok(f"CH{ch} OFF")
     except MightexError as exc:
-        error(f"Failed: {exc}")
+        fail(f"Failed: {exc}")
 
 
 def do_normal_mode(led: MightexSLC) -> None:
@@ -214,9 +155,9 @@ def do_normal_mode(led: MightexSLC) -> None:
 
     try:
         led.enable_channel(ch, current_ma=current, max_current_ma=spec["max_ma"])
-        info(f"CH{ch} ON — {current} mA")
+        ok(f"CH{ch} ON — {current} mA")
     except MightexError as exc:
-        error(f"Failed: {exc}")
+        fail(f"Failed: {exc}")
         return
 
     # Offer ramp option
@@ -227,9 +168,9 @@ def do_normal_mode(led: MightexSLC) -> None:
         dwell = prompt_int("Dwell per step (seconds)", default=2)
 
         if start is None or end is None or steps is None or dwell is None:
-            error("Invalid ramp parameters.")
+            fail("Invalid ramp parameters.")
         elif steps < 2:
-            error("Need at least 2 steps for a ramp.")
+            fail("Need at least 2 steps for a ramp.")
         elif not validate_current(ch, end):
             pass
         else:
@@ -240,10 +181,10 @@ def do_normal_mode(led: MightexSLC) -> None:
                 ma = max(0, min(ma, spec["max_ma"]))
                 try:
                     led.set_current(ch, ma)
-                    info(f"Step {i + 1}/{steps}: {ma} mA")
+                    ok(f"Step {i + 1}/{steps}: {ma} mA")
                     time.sleep(dwell)
                 except MightexError as exc:
-                    error(f"Ramp failed at {ma} mA: {exc}")
+                    fail(f"Ramp failed at {ma} mA: {exc}")
                     break
 
     # Read back
@@ -253,7 +194,7 @@ def do_normal_mode(led: MightexSLC) -> None:
 
     if confirm("Turn off channel?"):
         led.disable_channel(ch)
-        info(f"CH{ch} OFF")
+        ok(f"CH{ch} OFF")
     else:
         warn(f"CH{ch} left ON at {set_ma} mA — remember to turn it off!")
 
@@ -282,7 +223,7 @@ def do_strobe_mode(led: MightexSLC) -> None:
     repeats = prompt_int("Repeat count (0 = infinite)", default=10)
 
     if on_duration is None or off_duration is None or repeats is None:
-        error("Invalid strobe parameters.")
+        fail("Invalid strobe parameters.")
         return
 
     print(
@@ -299,7 +240,7 @@ def do_strobe_mode(led: MightexSLC) -> None:
         led.set_strobe_step(ch, step=2, current_ma=0, duration_us=0)  # end marker
 
         led.set_mode(ch, Mode.STROBE)
-        info("Strobe running!")
+        ok("Strobe running!")
 
         if repeats == 0:
             print(f"  {C.DIM}Press Enter to stop...{C.RESET}")
@@ -311,10 +252,10 @@ def do_strobe_mode(led: MightexSLC) -> None:
             time.sleep(total_s + 0.5)
 
         led.disable_channel(ch)
-        info(f"CH{ch} OFF — strobe complete")
+        ok(f"CH{ch} OFF — strobe complete")
 
     except MightexError as exc:
-        error(f"Strobe failed: {exc}")
+        fail(f"Strobe failed: {exc}")
         with suppress(MightexError):
             led.disable_channel(ch)
 
@@ -331,12 +272,12 @@ def do_multi_channel(led: MightexSLC) -> None:
     try:
         channels = [int(x.strip()) for x in raw.split(",")]
     except ValueError:
-        error("Invalid channel list.")
+        fail("Invalid channel list.")
         return
 
     for ch in channels:
         if ch not in LEDS:
-            error(f"Invalid channel: {ch}")
+            fail(f"Invalid channel: {ch}")
             return
 
     # Get current for each channel
@@ -359,18 +300,18 @@ def do_multi_channel(led: MightexSLC) -> None:
         for ch, ma in currents.items():
             spec = LEDS[ch]
             led.enable_channel(ch, current_ma=ma, max_current_ma=spec["max_ma"])
-            info(f"CH{ch} ({spec['name']}) ON — {ma} mA")
+            ok(f"CH{ch} ({spec['name']}) ON — {ma} mA")
 
         print(f"\n  {C.DIM}Press Enter to turn all off...{C.RESET}")
         input()
 
     except MightexError as exc:
-        error(f"Failed: {exc}")
+        fail(f"Failed: {exc}")
     finally:
         for ch in channels:
             with suppress(MightexError):
                 led.disable_channel(ch)
-                info(f"CH{ch} OFF")
+                ok(f"CH{ch} OFF")
 
 
 def do_all_off(led: MightexSLC) -> None:
@@ -378,7 +319,7 @@ def do_all_off(led: MightexSLC) -> None:
     for ch in LEDS:
         with suppress(MightexError):
             led.disable_channel(ch)
-    info("All channels disabled.")
+    ok("All channels disabled.")
 
 
 # ═══════════════════════════════════════
@@ -430,9 +371,9 @@ def main() -> None:
     try:
         controller = MightexSLC(args.port)
         controller.connect()
-        info(f"Connected to {args.port}")
+        ok(f"Connected to {args.port}")
     except MightexError as exc:
-        error(f"Cannot connect: {exc}")
+        fail(f"Cannot connect: {exc}")
         sys.exit(1)
 
     # Show device info on startup
@@ -454,7 +395,7 @@ def main() -> None:
             if action:
                 action(controller)
             else:
-                error(f"Unknown option: {choice}")
+                fail(f"Unknown option: {choice}")
 
     except KeyboardInterrupt:
         print(f"\n\n  {C.YELLOW}Interrupted!{C.RESET}")
@@ -464,7 +405,7 @@ def main() -> None:
         print()
         do_all_off(controller)
         controller.disconnect()
-        info("Disconnected. Goodbye!")
+        ok("Disconnected. Goodbye!")
 
 
 if __name__ == "__main__":

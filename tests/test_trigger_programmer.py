@@ -432,6 +432,24 @@ class TestProgramAll:
 # ══════════════════════════════════════════════════════════════════════════
 
 
+def _stub_queries(controller, responses: list[str]):
+    """Patch ``controller._transport.send`` so query commands return staged responses.
+
+    ``verify_channel`` issues three queries (``?MODE``, ``?TRIGGER``, ``?TRIGP``)
+    via the controller's public API. The staged responses must be returned in
+    that order. Non-query commands fall through to the real (faked) transport.
+    """
+    response_iter = iter(responses)
+    original_send = controller._transport.send
+
+    def mock_send(cmd):
+        if cmd.startswith("?"):
+            return next(response_iter).strip()
+        return original_send(cmd)
+
+    return patch.object(controller._transport, "send", side_effect=mock_send)
+
+
 class TestVerifyChannel:
     def _make_ch(self, channel=1, current_ma=1200, max_current_ma=1200):
         return ChannelConfig(
@@ -445,30 +463,15 @@ class TestVerifyChannel:
         )
 
     def test_passes_when_correct(self, controller, fake_serial):
-        """Set up staged responses that match the expected config."""
         ch = self._make_ch()
-
-        # verify_channel sends 3 queries: ?MODE, ?TRIGGER, ?TRIGP
-        # FakeSerial auto-resets to "##" after each staged response, so we
-        # need to intercept at the protocol level.
-        responses = iter(
+        with _stub_queries(
+            controller,
             [
                 "#3\n\r",  # ?MODE 1 → TRIGGER (3)
                 "#1200 0\n\r",  # ?TRIGGER 1 → Imax=1200, polarity=0
-                "#1200 9999\n\r",  # ?TRIGP 1 → contains 1200
-            ]
-        )
-
-        original_send = controller._transport.send
-
-        def mock_send(cmd):
-            if cmd.startswith("?"):
-                # Intercept query commands with our staged responses
-                resp = next(responses)
-                return resp.strip()
-            return original_send(cmd)
-
-        with patch.object(controller._transport, "send", side_effect=mock_send):
+                "#1200 9999 0 0\n\r",  # ?TRIGP 1 → step 0 + terminator
+            ],
+        ):
             result = verify_channel(controller, ch)
 
         assert result.success is True
@@ -476,23 +479,14 @@ class TestVerifyChannel:
 
     def test_fails_on_wrong_mode(self, controller, fake_serial):
         ch = self._make_ch()
-
-        responses = iter(
+        with _stub_queries(
+            controller,
             [
                 "#1\n\r",  # ?MODE 1 → NORMAL (wrong!)
-                "#1200 0\n\r",  # ?TRIGGER 1
-                "#1200 9999\n\r",  # ?TRIGP 1
-            ]
-        )
-
-        original_send = controller._transport.send
-
-        def mock_send(cmd):
-            if cmd.startswith("?"):
-                return next(responses).strip()
-            return original_send(cmd)
-
-        with patch.object(controller._transport, "send", side_effect=mock_send):
+                "#1200 0\n\r",
+                "#1200 9999 0 0\n\r",
+            ],
+        ):
             result = verify_channel(controller, ch)
 
         assert result.success is False
@@ -500,27 +494,67 @@ class TestVerifyChannel:
 
     def test_fails_on_wrong_imax(self, controller, fake_serial):
         ch = self._make_ch()
-
-        responses = iter(
+        with _stub_queries(
+            controller,
             [
-                "#3\n\r",  # mode OK
+                "#3\n\r",
                 "#800 0\n\r",  # Imax=800 (wrong!)
-                "#1200 9999\n\r",  # profile OK
-            ]
-        )
-
-        original_send = controller._transport.send
-
-        def mock_send(cmd):
-            if cmd.startswith("?"):
-                return next(responses).strip()
-            return original_send(cmd)
-
-        with patch.object(controller._transport, "send", side_effect=mock_send):
+                "#1200 9999 0 0\n\r",
+            ],
+        ):
             result = verify_channel(controller, ch)
 
         assert result.success is False
         assert "800" in result.message
+
+    def test_fails_on_wrong_polarity(self, controller, fake_serial):
+        ch = self._make_ch()
+        with _stub_queries(
+            controller,
+            [
+                "#3\n\r",
+                "#1200 1\n\r",  # falling, expected rising
+                "#1200 9999 0 0\n\r",
+            ],
+        ):
+            result = verify_channel(controller, ch)
+
+        assert result.success is False
+        assert "polarity" in result.message
+
+    def test_fails_on_wrong_step_current(self, controller, fake_serial):
+        """Regression: substring matching used to pass when step current
+        merely *contained* the expected value (e.g. expected 1200, profile
+        reports 12000). Exact comparison now catches this."""
+        ch = self._make_ch(current_ma=1200)
+        with _stub_queries(
+            controller,
+            [
+                "#3\n\r",
+                "#1200 0\n\r",
+                "#12000 9999 0 0\n\r",  # 12000, not 1200
+            ],
+        ):
+            result = verify_channel(controller, ch)
+
+        assert result.success is False
+        assert "12000" in result.message
+        assert "1200" in result.message
+
+    def test_fails_on_empty_profile(self, controller, fake_serial):
+        ch = self._make_ch()
+        with _stub_queries(
+            controller,
+            [
+                "#3\n\r",
+                "#1200 0\n\r",
+                "#\n\r",  # empty profile
+            ],
+        ):
+            result = verify_channel(controller, ch)
+
+        assert result.success is False
+        assert "empty" in result.message
 
 
 class TestVerifyAll:
@@ -534,26 +568,17 @@ class TestVerifyAll:
             ],
         )
 
-        # Build responses for both channels (3 queries each)
-        all_responses = iter(
+        with _stub_queries(
+            controller,
             [
                 "#3\n\r",
                 "#1200 0\n\r",
-                "#1200 9999\n\r",  # CH1
+                "#1200 9999 0 0\n\r",  # CH1
                 "#3\n\r",
                 "#1000 0\n\r",
-                "#1000 9999\n\r",  # CH2
-            ]
-        )
-
-        original_send = controller._transport.send
-
-        def mock_send(cmd):
-            if cmd.startswith("?"):
-                return next(all_responses).strip()
-            return original_send(cmd)
-
-        with patch.object(controller._transport, "send", side_effect=mock_send):
+                "#1000 9999 0 0\n\r",  # CH2
+            ],
+        ):
             report = verify_all(controller, config)
 
         assert report.all_ok

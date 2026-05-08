@@ -42,12 +42,6 @@ class MightexSLC:
             led.enable_channel(1, current_ma=50)
     """
 
-    # Class-level aliases for backward compatibility
-    MODE_DISABLE = Mode.DISABLE
-    MODE_NORMAL = Mode.NORMAL
-    MODE_STROBE = Mode.STROBE
-    MODE_TRIGGER = Mode.TRIGGER
-
     def __init__(
         self,
         port: str = DEFAULT_PORT,
@@ -123,33 +117,29 @@ class MightexSLC:
         """Return the LED load voltage for *channel* in millivolts."""
         return self._p.get_load_voltage(channel)
 
+    def get_trigger_params(self, channel: int) -> tuple[int, TriggerPolarity]:
+        """Return ``(max_current_ma, polarity)`` for *channel*."""
+        return self._p.get_trigger_params(channel)
+
+    def get_trigger_profile(self, channel: int) -> list[tuple[int, int]]:
+        """Return the programmed trigger profile as ``(current_ma, duration_us)`` pairs."""
+        return self._p.get_trigger_profile(channel)
+
     # -- Mode control -------------------------------------------------------
 
-    def set_mode(self, channel: int, mode: int) -> bool:
-        """Set *channel* to *mode* (see :class:`Mode`).
-
-        Returns ``True`` on success.  Raises on any failure.
-        """
+    def set_mode(self, channel: int, mode: int) -> None:
+        """Set *channel* to *mode* (see :class:`Mode`)."""
         self._p.set_mode(channel, mode)
-        return True
 
     # -- Normal mode --------------------------------------------------------
 
-    def set_normal_mode(self, channel: int, max_current_ma: int, set_current_ma: int) -> bool:
-        """Configure normal-mode parameters for *channel*.
-
-        Returns ``True`` on success.  Raises on any failure.
-        """
+    def set_normal_mode(self, channel: int, max_current_ma: int, set_current_ma: int) -> None:
+        """Configure normal-mode parameters for *channel*."""
         self._p.set_normal_params(channel, max_current_ma, set_current_ma)
-        return True
 
-    def set_current(self, channel: int, current_ma: int) -> bool:
-        """Quick-set the working current while already in NORMAL mode.
-
-        Returns ``True`` on success.  Raises on any failure.
-        """
+    def set_current(self, channel: int, current_ma: int) -> None:
+        """Quick-set the working current while already in NORMAL mode."""
         self._p.set_current(channel, current_ma)
-        return True
 
     # -- Convenience --------------------------------------------------------
 
@@ -158,36 +148,25 @@ class MightexSLC:
         channel: int,
         current_ma: int,
         max_current_ma: int = MAX_CURRENT_NORMAL_MA,
-    ) -> bool:
+    ) -> None:
         """Enable *channel* in NORMAL mode at *current_ma*.
 
         *max_current_ma* sets the per-channel safety ceiling (Imax) and
         defaults to the NORMAL-mode maximum of 1000 mA.  Set it lower to
         match your LED's rating and prevent accidental over-driving.
-
-        Returns ``True`` on success.  Raises on any failure.
         """
         self.set_normal_mode(channel, max_current_ma, current_ma)
         self.set_mode(channel, Mode.NORMAL)
-        return True
 
-    def disable_channel(self, channel: int) -> bool:
-        """Disable *channel* (turn the LED off).
-
-        Returns ``True`` on success.  Raises on any failure.
-        """
+    def disable_channel(self, channel: int) -> None:
+        """Disable *channel* (turn the LED off)."""
         self.set_mode(channel, Mode.DISABLE)
-        return True
 
     # -- Strobe mode --------------------------------------------------------
 
-    def set_strobe_params(self, channel: int, max_current_ma: int, repeat: int) -> bool:
-        """Configure strobe mode for *channel*.
-
-        Returns ``True`` on success.  Raises on any failure.
-        """
+    def set_strobe_params(self, channel: int, max_current_ma: int, repeat: int) -> None:
+        """Configure strobe mode for *channel*."""
         self._p.set_strobe_params(channel, max_current_ma, repeat)
-        return True
 
     def set_strobe_step(
         self,
@@ -195,14 +174,12 @@ class MightexSLC:
         step: int,
         current_ma: int,
         duration_us: int,
-    ) -> bool:
+    ) -> None:
         """Set a single strobe profile step.
 
         Use ``current_ma=0, duration_us=0`` as the end-of-profile marker.
-        Returns ``True`` on success.  Raises on any failure.
         """
         self._p.set_strobe_step(channel, step, current_ma, duration_us)
-        return True
 
     # -- Trigger mode -------------------------------------------------------
 
@@ -211,13 +188,9 @@ class MightexSLC:
         channel: int,
         max_current_ma: int,
         polarity: TriggerPolarity = TriggerPolarity.RISING,
-    ) -> bool:
-        """Configure trigger mode for *channel*.
-
-        Returns ``True`` on success.  Raises on any failure.
-        """
+    ) -> None:
+        """Configure trigger mode for *channel*."""
         self._p.set_trigger_params(channel, max_current_ma, polarity)
-        return True
 
     def set_trigger_step(
         self,
@@ -225,13 +198,9 @@ class MightexSLC:
         step: int,
         current_ma: int,
         duration_us: int,
-    ) -> bool:
-        """Set a single trigger profile step.
-
-        Returns ``True`` on success.  Raises on any failure.
-        """
+    ) -> None:
+        """Set a single trigger profile step."""
         self._p.set_trigger_step(channel, step, current_ma, duration_us)
-        return True
 
     def set_trigger_follower(
         self,
@@ -239,11 +208,11 @@ class MightexSLC:
         current_ma: int,
         max_current_ma: int | None = None,
         polarity: TriggerPolarity = TriggerPolarity.RISING,
-    ) -> bool:
+    ) -> None:
         """Configure *channel* for trigger follower mode.
 
         In follower mode the LED is ON at *current_ma* while the trigger
-        input is HIGH, and OFF when the trigger input goes LOW.  This is
+        input is HIGH, and OFF when the trigger input goes LOW. This is
         the recommended mode for frame-synchronized imaging systems where
         an external controller (e.g. Arduino) drives the trigger pulse.
 
@@ -258,11 +227,9 @@ class MightexSLC:
         Args:
             channel: SLC channel (1-4).
             current_ma: LED drive current in mA.
-            max_current_ma: Per-channel current ceiling (Imax).  Defaults
+            max_current_ma: Per-channel current ceiling (Imax). Defaults
                 to *current_ma* if not specified.
             polarity: Trigger edge polarity (default: rising edge).
-
-        Returns ``True`` on success.  Raises on any failure.
         """
         if max_current_ma is None:
             max_current_ma = current_ma
@@ -274,33 +241,20 @@ class MightexSLC:
         )
         self.set_trigger_step(channel, step=1, current_ma=0, duration_us=0)
         self.set_mode(channel, Mode.TRIGGER)
-        return True
 
     # -- System -------------------------------------------------------------
 
-    def store_settings(self) -> bool:
-        """Save current settings to non-volatile memory.
-
-        Returns ``True`` on success.  Raises on any failure.
-        """
+    def store_settings(self) -> None:
+        """Save current settings to non-volatile memory."""
         self._p.store_settings()
-        return True
 
-    def reset(self) -> bool:
-        """Perform a soft reset.
-
-        Returns ``True`` on success.  Raises on any failure.
-        """
+    def reset(self) -> None:
+        """Perform a soft reset."""
         self._p.reset()
-        return True
 
-    def restore_defaults(self) -> bool:
-        """Restore factory defaults.
-
-        Returns ``True`` on success.  Raises on any failure.
-        """
+    def restore_defaults(self) -> None:
+        """Restore factory defaults."""
         self._p.restore_defaults()
-        return True
 
 
 # ---------------------------------------------------------------------------

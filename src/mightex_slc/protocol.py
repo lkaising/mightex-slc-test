@@ -175,6 +175,39 @@ def _parse_normal_params(response: str) -> tuple[int, int]:
         raise CommandError(f"Cannot parse normal params from {response!r}") from exc
 
 
+def _parse_trigger_params(response: str) -> tuple[int, TriggerPolarity]:
+    """Extract ``(max_current_ma, polarity)`` from a ``?TRIGGER`` response.
+
+    Expected format: ``#<Imax> <polarity>``.
+    """
+    parts = response.replace("#", "").split()
+    if len(parts) < 2:
+        raise CommandError(f"Cannot parse trigger params from {response!r}")
+    try:
+        return int(parts[-2]), TriggerPolarity(int(parts[-1]))
+    except (ValueError, TypeError) as exc:
+        raise CommandError(f"Cannot parse trigger params from {response!r}") from exc
+
+
+def _parse_profile_steps(response: str) -> list[tuple[int, int]]:
+    """Extract a list of ``(current_ma, duration_us)`` pairs from a profile response.
+
+    Used for both ``?STRP`` and ``?TRIGP`` responses. The device returns the
+    programmed steps as a flat sequence of integers; this parser groups them
+    into pairs and raises if the count is odd.
+    """
+    parts = response.replace("#", "").split()
+    if not parts:
+        return []
+    if len(parts) % 2 != 0:
+        raise CommandError(f"Cannot parse profile steps (odd token count) from {response!r}")
+    try:
+        nums = [int(p) for p in parts]
+    except ValueError as exc:
+        raise CommandError(f"Cannot parse profile steps from {response!r}") from exc
+    return list(zip(nums[0::2], nums[1::2]))
+
+
 def _parse_load_voltage(response: str) -> int:
     """Extract a millivolt value from a ``LoadVoltage`` response."""
     try:
@@ -323,6 +356,22 @@ class SLCProtocol:
         _validate_current(current_ma, MAX_CURRENT_PULSED_MA, "current_ma")
         _validate_duration(duration_us)
         self._cmd_ack(f"TRIGP {channel} {step} {current_ma} {duration_us}")
+
+    def get_trigger_params(self, channel: int) -> tuple[int, TriggerPolarity]:
+        """Return ``(max_current_ma, polarity)`` for *channel*."""
+        _validate_channel(channel)
+        response = self._cmd(f"?TRIGGER {channel}")
+        return _parse_trigger_params(response)
+
+    def get_trigger_profile(self, channel: int) -> list[tuple[int, int]]:
+        """Return the programmed trigger profile for *channel*.
+
+        The list contains ``(current_ma, duration_us)`` pairs in step order.
+        The trailing ``(0, 0)`` terminator step (if present) is included.
+        """
+        _validate_channel(channel)
+        response = self._cmd(f"?TRIGP {channel}")
+        return _parse_profile_steps(response)
 
     # -- System -------------------------------------------------------------
 

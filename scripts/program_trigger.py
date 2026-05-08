@@ -22,9 +22,12 @@ from contextlib import suppress
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from mightex_slc import MightexError, MightexSLC, Mode
-from mightex_slc.trigger_programmer import (
+from _cli_ui import C, banner, fail, info, ok, prompt, prompt_int, warn  # noqa: E402
+
+from mightex_slc import MightexError, MightexSLC, Mode  # noqa: E402
+from mightex_slc.trigger_programmer import (  # noqa: E402
     ChannelConfig,
     ProgramReport,
     TriggerConfig,
@@ -40,71 +43,6 @@ from mightex_slc.trigger_programmer import (
 # ---------------------------------------------------------------------------
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "config" / "trigger_config.yaml"
-
-# ---------------------------------------------------------------------------
-# Terminal helpers
-# ---------------------------------------------------------------------------
-
-
-class C:
-    """ANSI color codes (no-op on non-TTY)."""
-
-    if sys.stdout.isatty():
-        BOLD = "\033[1m"
-        DIM = "\033[2m"
-        GREEN = "\033[32m"
-        YELLOW = "\033[33m"
-        RED = "\033[31m"
-        CYAN = "\033[36m"
-        RESET = "\033[0m"
-    else:
-        BOLD = DIM = GREEN = YELLOW = RED = CYAN = RESET = ""
-
-
-def ok(text: str) -> None:
-    print(f"  {C.GREEN}✓{C.RESET} {text}")
-
-
-def fail(text: str) -> None:
-    print(f"  {C.RED}✗{C.RESET} {text}")
-
-
-def warn(text: str) -> None:
-    print(f"  {C.YELLOW}⚠{C.RESET} {text}")
-
-
-def info(text: str) -> None:
-    print(f"  {C.DIM}{text}{C.RESET}")
-
-
-def banner(text: str) -> None:
-    print(f"\n{C.BOLD}{'═' * 60}")
-    print(f"  {text}")
-    print(f"{'═' * 60}{C.RESET}")
-
-
-def prompt(text: str, default: str = "") -> str:
-    suffix = f" [{default}]" if default else ""
-    try:
-        val = input(f"  {text}{suffix}: ").strip()
-    except EOFError:
-        return default
-    return val if val else default
-
-
-def prompt_int(text: str, default: int | None = None) -> int | None:
-    raw = prompt(text, str(default) if default is not None else "")
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        fail(f"Invalid number: {raw}")
-        return None
-
-
-def confirm(text: str) -> bool:
-    return prompt(f"{text} (y/n)", "n").lower().startswith("y")
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +366,7 @@ def main() -> int:
     # Load config
     try:
         config = load_config(args.config)
-    except (FileNotFoundError, Exception) as exc:
+    except (FileNotFoundError, MightexError) as exc:
         print(f"{C.RED}✗{C.RESET} Config error: {exc}", file=sys.stderr)
         return 1
 

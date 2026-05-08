@@ -33,7 +33,9 @@ exceptions.py        MightexError hierarchy
 constants.py         single source of truth for limits & defaults
 ```
 
-`trigger_programmer.py` sits *beside* the controller (not above it) and provides reusable YAML-config-driven trigger-follower programming. Both `scripts/program_trigger.py` and any future system-integration code import from it. The verify path uses `controller._p` to send raw `?TRIGGER`/`?TRIGP` queries — that internal access is intentional and marked with `noqa`.
+`trigger_programmer.py` sits *beside* the controller (not above it) and provides reusable YAML-config-driven trigger-follower programming. Both `scripts/program_trigger.py` and any future system-integration code import from it. Verification compares against the public API — `MightexSLC.get_mode`, `get_trigger_params`, `get_trigger_profile` — so do not introduce `controller._p` access here.
+
+`scripts/_cli_ui.py` is a small shared module for the interactive scripts (color codes, `ok`/`fail`/`warn`/`info`, `banner`, `prompt`, `confirm`). It's underscore-prefixed because it's internal to `scripts/` — not part of the public package. Both `program_trigger.py` and `led_test_cli.py` import from it; do not redefine these helpers per script.
 
 ### Protocol contract (matters for any change to transport or protocol)
 

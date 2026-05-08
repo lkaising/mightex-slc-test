@@ -5,7 +5,7 @@ Organised by layer:
 
 * **Transport** — serial I/O, timeouts, buffer hygiene
 * **Protocol** — parsing, validation, ack checking, command formatting
-* **Controller** — user-facing API, convenience methods, backward compat
+* **Controller** — user-facing API, convenience methods
 * **Hardware** — integration tests against a real device (skipped by default)
 
 Run unit tests::
@@ -409,6 +409,40 @@ class TestProtocolParsing:
         with pytest.raises(CommandError, match="Cannot parse"):
             protocol.get_load_voltage(1)
 
+    def test_get_trigger_params(self, protocol, fake_serial):
+        fake_serial.set_response("#1200 0\n\r")
+        imax, polarity = protocol.get_trigger_params(1)
+        assert imax == 1200
+        assert polarity == TriggerPolarity.RISING
+
+    def test_get_trigger_params_falling(self, protocol, fake_serial):
+        fake_serial.set_response("#600 1\n\r")
+        imax, polarity = protocol.get_trigger_params(1)
+        assert imax == 600
+        assert polarity == TriggerPolarity.FALLING
+
+    def test_get_trigger_params_too_few_fields(self, protocol, fake_serial):
+        fake_serial.set_response("#1200\n\r")
+        with pytest.raises(CommandError, match="Cannot parse trigger"):
+            protocol.get_trigger_params(1)
+
+    def test_get_trigger_profile_single_step(self, protocol, fake_serial):
+        fake_serial.set_response("#1200 9999\n\r")
+        assert protocol.get_trigger_profile(1) == [(1200, 9999)]
+
+    def test_get_trigger_profile_with_terminator(self, protocol, fake_serial):
+        fake_serial.set_response("#1200 9999 0 0\n\r")
+        assert protocol.get_trigger_profile(1) == [(1200, 9999), (0, 0)]
+
+    def test_get_trigger_profile_empty(self, protocol, fake_serial):
+        fake_serial.set_response("#\n\r")
+        assert protocol.get_trigger_profile(1) == []
+
+    def test_get_trigger_profile_odd_token_count_raises(self, protocol, fake_serial):
+        fake_serial.set_response("#1200 9999 0\n\r")
+        with pytest.raises(CommandError, match="odd token count"):
+            protocol.get_trigger_profile(1)
+
 
 class TestProtocolSystemCommands:
     def test_store_settings(self, protocol, fake_serial):
@@ -455,16 +489,16 @@ class TestControllerConvenience:
     """The high-level methods that compose multiple protocol calls."""
 
     def test_enable_channel_default_max(self, controller, fake_serial):
-        assert controller.enable_channel(1, current_ma=50) is True
+        controller.enable_channel(1, current_ma=50)
         assert any(b"NORMAL 1 1000 50" in w for w in fake_serial.written)
 
     def test_enable_channel_explicit_max(self, controller, fake_serial):
-        assert controller.enable_channel(1, current_ma=50, max_current_ma=200) is True
+        controller.enable_channel(1, current_ma=50, max_current_ma=200)
         assert any(b"NORMAL 1 200 50" in w for w in fake_serial.written)
 
     def test_enable_channel_explicit_max_at_normal_limit(self, controller, fake_serial):
         """Explicit max_current_ma at the NORMAL ceiling should succeed."""
-        assert controller.enable_channel(1, current_ma=500, max_current_ma=1000) is True
+        controller.enable_channel(1, current_ma=500, max_current_ma=1000)
 
     def test_enable_channel_explicit_max_above_normal_limit(self, controller, fake_serial):
         """Explicit max_current_ma above the NORMAL ceiling should fail."""
@@ -472,41 +506,8 @@ class TestControllerConvenience:
             controller.enable_channel(1, current_ma=500, max_current_ma=1001)
 
     def test_disable_channel(self, controller, fake_serial):
-        assert controller.disable_channel(1) is True
+        controller.disable_channel(1)
         assert any(b"MODE 1 0" in w for w in fake_serial.written)
-
-    def test_set_mode_returns_true(self, controller, fake_serial):
-        assert controller.set_mode(1, Mode.NORMAL) is True
-
-    def test_set_normal_mode_returns_true(self, controller, fake_serial):
-        assert controller.set_normal_mode(1, 200, 100) is True
-
-    def test_set_current_returns_true(self, controller, fake_serial):
-        assert controller.set_current(1, 75) is True
-
-    def test_store_settings_returns_true(self, controller, fake_serial):
-        assert controller.store_settings() is True
-
-    def test_reset_returns_true(self, controller, fake_serial):
-        assert controller.reset() is True
-
-    def test_restore_defaults_returns_true(self, controller, fake_serial):
-        assert controller.restore_defaults() is True
-
-    def test_set_strobe_params_returns_true(self, controller, fake_serial):
-        assert controller.set_strobe_params(1, max_current_ma=100, repeat=5) is True
-
-    def test_set_strobe_step_returns_true(self, controller, fake_serial):
-        assert controller.set_strobe_step(1, step=0, current_ma=50, duration_us=2000) is True
-
-    def test_set_trigger_params_returns_true(self, controller, fake_serial):
-        assert (
-            controller.set_trigger_params(1, max_current_ma=100, polarity=TriggerPolarity.FALLING)
-            is True
-        )
-
-    def test_set_trigger_step_returns_true(self, controller, fake_serial):
-        assert controller.set_trigger_step(1, step=0, current_ma=50, duration_us=2000) is True
 
     def test_get_device_info(self, controller, fake_serial):
         fake_serial.set_response(
@@ -530,21 +531,8 @@ class TestControllerConvenience:
         assert controller.get_load_voltage(1) == 3200
 
 
-class TestBackwardCompat:
-    """The old class-level MODE_* constants should still work."""
-
-    def test_class_mode_constants(self):
-        assert MightexSLC.MODE_DISABLE == 0
-        assert MightexSLC.MODE_NORMAL == 1
-        assert MightexSLC.MODE_STROBE == 2
-        assert MightexSLC.MODE_TRIGGER == 3
-
-
 class TestTriggerFollower:
     """Tests for the set_trigger_follower convenience method."""
-
-    def test_returns_true_on_success(self, controller, fake_serial):
-        assert controller.set_trigger_follower(1, current_ma=1200) is True
 
     def test_sends_five_commands_in_order(self, controller, fake_serial):
         """Verify the full safe programming sequence from the spec."""
@@ -678,12 +666,12 @@ class TestHardwareIntegration:
         assert set_ma == SAFE_CURRENT
 
     def test_enable_disable(self):
-        assert self.led.enable_channel(1, SAFE_CURRENT)
+        self.led.enable_channel(1, SAFE_CURRENT)
         assert self.led.get_mode(1) == Mode.NORMAL
-        assert self.led.disable_channel(1)
+        self.led.disable_channel(1)
         assert self.led.get_mode(1) == Mode.DISABLE
 
     def test_all_channels_respond(self):
         for ch in range(1, 5):
-            assert self.led.disable_channel(ch)
+            self.led.disable_channel(ch)
             assert self.led.get_mode(ch) == Mode.DISABLE
