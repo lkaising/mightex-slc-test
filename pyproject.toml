@@ -3,7 +3,7 @@ name = "mightex-slc-test"
 version = "0.1.0"
 description = "Python interface for Mightex SLC LED controller via RS232"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     {name = "Logan Kaising"}
 ]
