@@ -199,7 +199,7 @@ Acceptance criteria (must all hold).
 - `python -c "from mightex_slc import ConnectionError"` raises ImportError.
 - `python -c "from mightex_slc import MightexConnectionError, MightexTimeoutError"` succeeds.
 
-When done. Single commit on the current branch with a message that flags the breaking change. Do NOT push. Report what you changed and the test/ruff output.
+When done. Report what you changed and the test/ruff output. Do not make any commits or push, I can handle that.
 ~~~
 
 ---
@@ -252,7 +252,7 @@ Acceptance criteria.
 - File names match the source modules they exercise.
 - `ruff check` is green.
 
-When done. Single commit on the current branch. Do NOT push. Report what moved where, the new fake API, and pytest output.
+When done. Report what moved where, the new fake API, and pytest output. Do not make any commits or push, I can handle that.
 ~~~
 
 ---
@@ -302,7 +302,7 @@ Acceptance criteria.
 - Each fix has a corresponding test that demonstrably failed before the fix. Confirm by temporarily reverting each fix in turn and rerunning the new test.
 - `ruff check` green.
 
-When done. Single commit on the current branch. Do NOT push. Report the bugs fixed, the tests added, and explicit confirmation that each new test fails without its fix.
+When done. Report the bugs fixed, the tests added, and explicit confirmation that each new test fails without its fix. Do not make any commits or push, I can handle that.
 ~~~
 
 ---
@@ -361,7 +361,7 @@ Acceptance criteria.
 - The comment at protocol.py near line 392 accurately describes the actual device behavior, supported by the probe output captured in Step 1.
 - `ruff check` green.
 
-When done. Single commit on the current branch. Do NOT push. Report:
+When done. Do not make any commits or push, I can handle that. Report:
 - The exact bytes the device returned to ECHOOFF.
 - Which branch (A / B / C) you took and why.
 - The test additions.
