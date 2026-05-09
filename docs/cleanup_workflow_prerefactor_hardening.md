@@ -57,22 +57,25 @@
 **In scope.**
 1. Add a multi-response staging mechanism to `FakeSerial` (e.g. `queue_responses([...])` consumed one per `write`).
 2. Delete `_stub_queries` from [tests/test_trigger_programmer.py:435](tests/test_trigger_programmer.py:435) and rewrite verification tests to use the queueing fake.
-3. Split tests into 5 files:
+3. Split tests into 9 files:
    ```
    tests/
      conftest.py
-     test_transport.py
-     test_protocol.py            ← validation + ack + parsing + commands
-     test_controller.py
-     test_trigger_programmer.py  ← config + workflow
-     test_hardware.py            ← @pytest.mark.hardware only
+     test_transport.py              ← Layer 1
+     test_protocol_validation.py    ← Layer 2 — input rejection
+     test_protocol_responses.py     ← Layer 2 — parsing + ack handling + enums
+     test_protocol_commands.py      ← Layer 2 — wire-format outputs + system commands
+     test_controller.py             ← Layer 3 — user-facing API + set_trigger_follower
+     test_trigger_config.py         ← YAML loading + config validation
+     test_trigger_workflow.py       ← program/verify channel + all + reports
+     test_hardware.py               ← @pytest.mark.hardware only
    ```
 4. Rename vague tests to behavior-focused names (the folded-in 3c). Examples:
    - `test_success` → `test_program_channel_sends_full_follower_sequence`
    - `test_passes_when_correct` → `test_verify_channel_passes_when_mode_imax_and_step_match`
 
 **Out of scope.**
-- Do not move `FakeSerial` into a separate `fakes.py`. Keep in `conftest.py`.
+- Keep `FakeSerial` in `conftest.py` for now. Extracting it to a separate `fakes.py` is deferred until a second fake (e.g. `FakeTransport`) is introduced.
 - Do not introduce a separate `FakeTransport` abstraction.
 - Do not add new test cases for new behavior — that's Phase 3a.
 - Do not delete tests that currently exist; only rename and relocate.
@@ -81,7 +84,7 @@
 - `pytest` green.
 - Same behavioral coverage; no intentional deletions. Test count is a useful guardrail — significant drops should be justified in the commit message (e.g. legitimate parametrization collapsing N tests into one).
 - `grep -rn "_transport\.\|protocol\._cmd\|patch.object.*_transport" tests` returns nothing.
-- Each test file's name matches the source module under test.
+- Each test file is named for the concern it exercises. A source module with multiple distinct concerns (e.g. protocol input-validation vs. wire-format) may be covered by multiple test files; conversely, multiple closely-related source modules may share a test file.
 
 ---
 
@@ -222,16 +225,18 @@ Goal. Test-only improvements, in this order:
 2. Delete `_stub_queries` and rewrite affected tests.
    The verify-channel and verify-all tests in `tests/test_trigger_programmer.py` use it to stage three responses for the three `?MODE / ?TRIGGER / ?TRIGP` queries. Rewrite them with the new queueing fake.
 
-3. Split tests into 5 files mirroring source layers.
-   The existing `tests/test_controller.py` is already organized into Layer 1 (Transport), Layer 2 (Protocol), Layer 3 (Controller), and Hardware sections — those map almost 1:1 to the new files. Target layout:
+3. Split tests into 9 files. Layer 1/2/3 from the existing `tests/test_controller.py` map onto separate files; Layer 2 (the largest) is split further by concern, and `tests/test_trigger_programmer.py` is split into config-loading vs. workflow. Target layout:
 
        tests/
          conftest.py
-         test_transport.py            (Layer 1)
-         test_protocol.py             (Layer 2 — validation + ack + parsing + commands kept together)
-         test_controller.py           (Layer 3 — user-facing API + set_trigger_follower)
-         test_trigger_programmer.py   (config loading + program/verify workflow)
-         test_hardware.py             (@pytest.mark.hardware only)
+         test_transport.py              (Layer 1)
+         test_protocol_validation.py    (Layer 2 — input rejection)
+         test_protocol_responses.py     (Layer 2 — parsing + ack handling + enums)
+         test_protocol_commands.py      (Layer 2 — wire-format outputs + system commands)
+         test_controller.py             (Layer 3 — user-facing API + set_trigger_follower)
+         test_trigger_config.py         (YAML loading + config validation)
+         test_trigger_workflow.py       (program/verify channel + all + reports)
+         test_hardware.py               (@pytest.mark.hardware only)
 
 4. Rename vague tests to behavior-focused names. Examples:
    - `TestProgramChannel.test_success` → `test_program_channel_sends_full_follower_sequence`
@@ -240,7 +245,7 @@ Goal. Test-only improvements, in this order:
 
 Out of scope.
 - Do NOT change anything in `src/`.
-- Do NOT move `FakeSerial` into a separate `tests/fakes.py` — keep it in `conftest.py`.
+- Keep `FakeSerial` in `tests/conftest.py` for now. Extracting it to a separate `tests/fakes.py` is deferred until a second fake (e.g. `FakeTransport`) is introduced.
 - Do NOT introduce a `FakeTransport` abstraction.
 - Do NOT add new test cases for new behavior — that is a later phase.
 - Do NOT delete existing tests; only rename, relocate, or rewrite their setup.
@@ -249,7 +254,7 @@ Acceptance criteria.
 - `pytest` is green.
 - Same behavioral coverage; no intentional deletions. Test count is a useful guardrail — if a count drop is unavoidable (e.g. legitimate parametrization collapsing similar tests into one), justify it in the commit message.
 - `grep -rn "_transport\.\|protocol\._cmd\|patch.object.*_transport" tests/` returns nothing.
-- File names match the source modules they exercise.
+- Each test file is named for the concern it exercises. A source module with multiple distinct concerns (e.g. protocol input-validation vs. wire-format) may be covered by multiple test files; conversely, multiple closely-related source modules may share a test file.
 - `ruff check` is green.
 
 When done. Report what moved where, the new fake API, and pytest output. Do not make any commits or push, I can handle that.
