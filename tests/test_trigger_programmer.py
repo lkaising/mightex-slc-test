@@ -329,7 +329,7 @@ class TestLoadConfigInvalid:
 class TestProgramChannel:
     """Tests for program_channel using mock serial."""
 
-    def test_success(self, controller, fake_serial):
+    def test_program_channel_sends_full_follower_sequence(self, controller, fake_serial):
         ch = ChannelConfig(
             channel=1,
             name="M850L3",
@@ -432,24 +432,6 @@ class TestProgramAll:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-def _stub_queries(controller, responses: list[str]):
-    """Patch ``controller._transport.send`` so query commands return staged responses.
-
-    ``verify_channel`` issues three queries (``?MODE``, ``?TRIGGER``, ``?TRIGP``)
-    via the controller's public API. The staged responses must be returned in
-    that order. Non-query commands fall through to the real (faked) transport.
-    """
-    response_iter = iter(responses)
-    original_send = controller._transport.send
-
-    def mock_send(cmd):
-        if cmd.startswith("?"):
-            return next(response_iter).strip()
-        return original_send(cmd)
-
-    return patch.object(controller._transport, "send", side_effect=mock_send)
-
-
 class TestVerifyChannel:
     def _make_ch(self, channel=1, current_ma=1200, max_current_ma=1200):
         return ChannelConfig(
@@ -462,62 +444,58 @@ class TestVerifyChannel:
             polarity=TriggerPolarity.RISING,
         )
 
-    def test_passes_when_correct(self, controller, fake_serial):
+    def test_verify_channel_passes_when_mode_imax_and_step_match(self, controller, fake_serial):
         ch = self._make_ch()
-        with _stub_queries(
-            controller,
+        fake_serial.queue_responses(
             [
                 "#3\n\r",  # ?MODE 1 → TRIGGER (3)
                 "#1200 0\n\r",  # ?TRIGGER 1 → Imax=1200, polarity=0
                 "#1200 9999 0 0\n\r",  # ?TRIGP 1 → step 0 + terminator
-            ],
-        ):
-            result = verify_channel(controller, ch)
+            ]
+        )
+        result = verify_channel(controller, ch)
 
         assert result.success is True
         assert "verified OK" in result.message
 
     def test_fails_on_wrong_mode(self, controller, fake_serial):
         ch = self._make_ch()
-        with _stub_queries(
-            controller,
+        fake_serial.queue_responses(
             [
                 "#1\n\r",  # ?MODE 1 → NORMAL (wrong!)
                 "#1200 0\n\r",
                 "#1200 9999 0 0\n\r",
-            ],
-        ):
-            result = verify_channel(controller, ch)
+            ]
+        )
+        result = verify_channel(controller, ch)
 
         assert result.success is False
         assert "NORMAL" in result.message
 
     def test_fails_on_wrong_imax(self, controller, fake_serial):
         ch = self._make_ch()
-        with _stub_queries(
-            controller,
+        fake_serial.queue_responses(
             [
                 "#3\n\r",
                 "#800 0\n\r",  # Imax=800 (wrong!)
                 "#1200 9999 0 0\n\r",
-            ],
-        ):
-            result = verify_channel(controller, ch)
+            ]
+        )
+        result = verify_channel(controller, ch)
 
         assert result.success is False
         assert "800" in result.message
 
     def test_fails_on_wrong_polarity(self, controller, fake_serial):
         ch = self._make_ch()
-        with _stub_queries(
-            controller,
+        fake_serial.queue_responses(
             [
                 "#3\n\r",
                 "#1200 1\n\r",  # falling, expected rising
                 "#1200 9999 0 0\n\r",
-            ],
-        ):
-            result = verify_channel(controller, ch)
+            ]
+        )
+        result = verify_channel(controller, ch)
 
         assert result.success is False
         assert "polarity" in result.message
@@ -527,15 +505,14 @@ class TestVerifyChannel:
         merely *contained* the expected value (e.g. expected 1200, profile
         reports 12000). Exact comparison now catches this."""
         ch = self._make_ch(current_ma=1200)
-        with _stub_queries(
-            controller,
+        fake_serial.queue_responses(
             [
                 "#3\n\r",
                 "#1200 0\n\r",
                 "#12000 9999 0 0\n\r",  # 12000, not 1200
-            ],
-        ):
-            result = verify_channel(controller, ch)
+            ]
+        )
+        result = verify_channel(controller, ch)
 
         assert result.success is False
         assert "12000" in result.message
@@ -543,22 +520,21 @@ class TestVerifyChannel:
 
     def test_fails_on_empty_profile(self, controller, fake_serial):
         ch = self._make_ch()
-        with _stub_queries(
-            controller,
+        fake_serial.queue_responses(
             [
                 "#3\n\r",
                 "#1200 0\n\r",
                 "#\n\r",  # empty profile
-            ],
-        ):
-            result = verify_channel(controller, ch)
+            ]
+        )
+        result = verify_channel(controller, ch)
 
         assert result.success is False
         assert "empty" in result.message
 
 
 class TestVerifyAll:
-    def test_all_pass(self, controller, fake_serial):
+    def test_verify_all_passes_when_every_channel_matches(self, controller, fake_serial):
         config = TriggerConfig(
             port="/dev/fake",
             store=True,
@@ -568,8 +544,7 @@ class TestVerifyAll:
             ],
         )
 
-        with _stub_queries(
-            controller,
+        fake_serial.queue_responses(
             [
                 "#3\n\r",
                 "#1200 0\n\r",
@@ -577,9 +552,9 @@ class TestVerifyAll:
                 "#3\n\r",
                 "#1000 0\n\r",
                 "#1000 9999 0 0\n\r",  # CH2
-            ],
-        ):
-            report = verify_all(controller, config)
+            ]
+        )
+        report = verify_all(controller, config)
 
         assert report.all_ok
         assert report.summary == "2/2 channels OK"

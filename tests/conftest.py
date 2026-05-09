@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from unittest.mock import patch
 
 import pytest
@@ -20,9 +21,17 @@ class FakeSerial:
     ``reset_input_buffer``, ``close``, and ``is_open``.
 
     By default every command gets a ``##\\n\\r`` (success ack) response.
-    Call :meth:`set_response` to stage a custom response for the **next**
-    command; after that command the default is automatically restored so
-    multi-command methods (like ``enable_channel``) work without extra setup.
+    Tests can override that default with either:
+
+    * :meth:`set_response` — stage a single response for the next command.
+    * :meth:`queue_responses` — stage a sequence of responses, one per
+      upcoming command. Useful for code paths that issue several queries
+      in a row (e.g. ``verify_channel`` reads ``?MODE``, ``?TRIGGER``,
+      ``?TRIGP``).
+
+    Once the queue drains, subsequent commands receive the default ack
+    again, so multi-command methods like ``enable_channel`` keep working
+    without extra setup.
 
     The response buffer refreshes on each :meth:`write` call (i.e. when a
     new command is sent), which matches the transport's pattern of
@@ -35,22 +44,34 @@ class FakeSerial:
         self.is_open: bool = True
         self.written: list[bytes] = []
         self._response: bytes = self._DEFAULT
-        self._next: bytes | None = None  # staged override for next write
+        self._queue: deque[bytes] = deque()
 
     # -- Helpers for tests --------------------------------------------------
 
     def set_response(self, text: str) -> None:
-        """Stage a response for the **next** command (write cycle)."""
-        self._next = text.encode("ascii")
+        """Stage a single response for the next command (write cycle).
+
+        Replaces any previously queued responses.
+        """
+        self._queue.clear()
+        self._queue.append(text.encode("ascii"))
+
+    def queue_responses(self, responses: list[str]) -> None:
+        """Stage a sequence of responses, one per upcoming write() call.
+
+        After the queue drains, subsequent writes get the default
+        ``##\\n\\r`` ack. Replaces any previously queued responses.
+        """
+        self._queue.clear()
+        self._queue.extend(text.encode("ascii") for text in responses)
 
     # -- pyserial interface -------------------------------------------------
 
     def write(self, data: bytes) -> int:
         self.written.append(data)
-        # Load the staged response (or default) for the upcoming reads
-        if self._next is not None:
-            self._response = self._next
-            self._next = None
+        # Load the next staged response (or default) for the upcoming reads
+        if self._queue:
+            self._response = self._queue.popleft()
         else:
             self._response = self._DEFAULT
         return len(data)
