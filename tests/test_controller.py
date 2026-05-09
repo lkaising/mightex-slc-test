@@ -30,11 +30,11 @@ from mightex_slc import (
     MAX_CURRENT_NORMAL_MA,
     MAX_CURRENT_PULSED_MA,
     CommandError,
-    ConnectionError,
     DeviceInfo,
+    MightexConnectionError,
     MightexSLC,
+    MightexTimeoutError,
     Mode,
-    TimeoutError,
     TriggerPolarity,
     ValidationError,
 )
@@ -62,7 +62,7 @@ class TestTransportConnection:
 
     def test_send_when_closed_raises(self, transport):
         transport.close()
-        with pytest.raises(ConnectionError, match="not open"):
+        with pytest.raises(MightexConnectionError, match="not open"):
             transport.send("DEVICEINFO")
 
     def test_open_failure_raises_connection_error(self):
@@ -73,7 +73,7 @@ class TestTransportConnection:
                 "mightex_slc.transport.serial.Serial",
                 side_effect=_serial.SerialException("port busy"),
             ),
-            pytest.raises(ConnectionError, match="Cannot open"),
+            pytest.raises(MightexConnectionError, match="Cannot open"),
         ):
             from mightex_slc.transport import SerialTransport
 
@@ -94,7 +94,7 @@ class TestTransportSend:
 
     def test_empty_response_raises_timeout(self, transport, fake_serial):
         fake_serial.set_response("")
-        with pytest.raises(TimeoutError, match="No response"):
+        with pytest.raises(MightexTimeoutError, match="No response"):
             transport.send("STORE")
 
     def test_multiline_response_fully_read(self, transport, fake_serial):
@@ -474,8 +474,8 @@ class TestControllerConnection:
     def test_command_when_disconnected_raises(self, controller):
         controller.disconnect()
         # _proto is set to None only before connect, but transport.send
-        # will raise ConnectionError because the port is closed
-        with pytest.raises((ConnectionError, Exception)):
+        # will raise MightexConnectionError because the port is closed
+        with pytest.raises((MightexConnectionError, Exception)):
             controller.get_device_info()
 
     def test_context_manager_closes(self, fake_serial):

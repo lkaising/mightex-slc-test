@@ -11,7 +11,7 @@ import time
 # Add src to path so we can import without installing
 sys.path.insert(0, "src")
 
-from mightex_slc import get_controller
+from mightex_slc import MightexSLC
 
 
 def main() -> None:
@@ -19,7 +19,7 @@ def main() -> None:
     print("Mightex SLC LED Controller — Example Usage")
     print("=" * 60)
 
-    with get_controller("/dev/ttyUSB0") as led:
+    with MightexSLC("/dev/ttyUSB0") as led:
         # ── Device info ───────────────────────────────────────────
         info = led.get_device_info()
         print("\nConnected to:")

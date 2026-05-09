@@ -103,9 +103,9 @@ ls -l /dev/ttyUSB*
 ## Quick Start
 
 ```python
-from mightex_slc import get_controller
+from mightex_slc import MightexSLC
 
-with get_controller('/dev/ttyUSB0') as led:
+with MightexSLC('/dev/ttyUSB0') as led:
     info = led.get_device_info()
     print(f"Connected to: {info.module_number}")
 
@@ -156,14 +156,14 @@ with MightexSLC('/dev/ttyUSB0') as led:
 ### Error Handling
 
 ```python
-from mightex_slc import MightexSLC, ConnectionError, TimeoutError, ValidationError
+from mightex_slc import MightexSLC, MightexConnectionError, MightexTimeoutError, ValidationError
 
 try:
     with MightexSLC('/dev/ttyUSB0') as led:
         led.enable_channel(1, current_ma=50)
-except ConnectionError as e:
+except MightexConnectionError as e:
     print(f"Cannot connect: {e}")
-except TimeoutError as e:
+except MightexTimeoutError as e:
     print(f"Device not responding: {e}")
 except ValidationError as e:
     print(f"Bad parameter: {e}")
@@ -232,8 +232,8 @@ All exceptions inherit from `MightexError`:
 
 | Exception | When |
 |---|---|
-| `ConnectionError` | Serial port unavailable or closed |
-| `TimeoutError` | Controller does not respond within timeout window |
+| `MightexConnectionError` | Serial port unavailable or closed |
+| `MightexTimeoutError` | Controller does not respond within timeout window |
 | `CommandError` | Controller returns `#!`, `#?`, undefined command, or unexpected response |
 | `ValidationError` | Invalid channel, current, mode, step, or duration before sending |
 

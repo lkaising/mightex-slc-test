@@ -18,7 +18,7 @@ import time
 import serial
 
 from .constants import DEFAULT_BAUD, DEFAULT_PORT, DEFAULT_TIMEOUT
-from .exceptions import ConnectionError, TimeoutError
+from .exceptions import MightexConnectionError, MightexTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class SerialTransport:
         """Open the serial port.
 
         Raises:
-            ConnectionError: If the port cannot be opened.
+            MightexConnectionError: If the port cannot be opened.
         """
         if self.is_open:
             return
@@ -74,7 +74,7 @@ class SerialTransport:
                 timeout=self.timeout,
             )
         except serial.SerialException as exc:
-            raise ConnectionError(f"Cannot open {self.port}: {exc}") from exc
+            raise MightexConnectionError(f"Cannot open {self.port}: {exc}") from exc
 
         self._ser = ser
 
@@ -111,8 +111,8 @@ class SerialTransport:
             Decoded response with surrounding whitespace stripped.
 
         Raises:
-            ConnectionError: If the port is not open.
-            TimeoutError: If no response is received.
+            MightexConnectionError: If the port is not open.
+            MightexTimeoutError: If no response is received.
         """
         ser = self._require_open()
         logger.debug("TX: %s", cmd)
@@ -126,7 +126,7 @@ class SerialTransport:
         logger.debug("RX: %s", response)
 
         if not response:
-            raise TimeoutError(f"No response from controller for '{cmd}'")
+            raise MightexTimeoutError(f"No response from controller for '{cmd}'")
 
         return response
 
@@ -135,7 +135,7 @@ class SerialTransport:
     def _require_open(self) -> serial.Serial:
         """Return the open serial port or raise."""
         if not self.is_open:
-            raise ConnectionError("Serial port not open — call open() first.")
+            raise MightexConnectionError("Serial port not open — call open() first.")
         assert self._ser is not None  # for type-checkers
         return self._ser
 

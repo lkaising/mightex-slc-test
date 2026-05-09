@@ -66,7 +66,6 @@ Tests organize by layer: transport I/O, protocol parsing/validation, controller 
 
 ## Notable conventions
 
-- `ConnectionError` and `TimeoutError` are intentionally shadowed with `# noqa: A001`.
 - `constants.py` is the canonical source of limits and defaults — import from there, do not redefine.
 - Channel numbers are 1-based (1–4).
 - Current units are mA for SA/AA/MA/CA/HA/HV modules (this project's hardware is SLC-SA04).

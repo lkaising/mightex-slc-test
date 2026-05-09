@@ -8,7 +8,7 @@ future system-integration code can import directly::
     from mightex_slc.trigger_programmer import load_config, program_all, verify_all
 
     config = load_config("config/trigger_config.yaml")
-    with get_controller(config.port) as led:
+    with MightexSLC(config.port) as led:
         report = program_all(led, config)
         report = verify_all(led, config)
 """

@@ -7,9 +7,9 @@ It composes :class:`~mightex_slc.transport.SerialTransport` and
 
 Example::
 
-    from mightex_slc import get_controller
+    from mightex_slc import MightexSLC
 
-    with get_controller('/dev/ttyUSB0') as led:
+    with MightexSLC('/dev/ttyUSB0') as led:
         led.enable_channel(1, current_ma=50)
         led.set_current(1, 100)
         led.disable_channel(1)
@@ -94,9 +94,9 @@ class MightexSLC:
     def _p(self) -> SLCProtocol:
         """Return the protocol instance, or raise if not connected."""
         if self._proto is None:
-            from .exceptions import ConnectionError
+            from .exceptions import MightexConnectionError
 
-            raise ConnectionError("Not connected — call connect() first.")
+            raise MightexConnectionError("Not connected — call connect() first.")
         return self._proto
 
     # -- Information --------------------------------------------------------
@@ -255,19 +255,3 @@ class MightexSLC:
     def restore_defaults(self) -> None:
         """Restore factory defaults."""
         self._p.restore_defaults()
-
-
-# ---------------------------------------------------------------------------
-# Convenience factory
-# ---------------------------------------------------------------------------
-
-
-def get_controller(port: str = DEFAULT_PORT) -> MightexSLC:
-    """Return a controller instance (use as a context manager).
-
-    Example::
-
-        with get_controller('/dev/ttyUSB0') as led:
-            led.enable_channel(1, current_ma=50)
-    """
-    return MightexSLC(port)

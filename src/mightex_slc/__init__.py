@@ -5,29 +5,28 @@ from .constants import (
     MAX_CURRENT_NORMAL_MA,
     MAX_CURRENT_PULSED_MA,
 )
-from .controller import MightexSLC, get_controller
+from .controller import MightexSLC
 from .exceptions import (
     CommandError,
-    ConnectionError,
+    MightexConnectionError,
     MightexError,
-    TimeoutError,
+    MightexTimeoutError,
     ValidationError,
 )
 from .protocol import DeviceInfo, Mode, TriggerPolarity
 
 __all__ = [
     "CommandError",
-    "ConnectionError",
     "DeviceInfo",
     "FOLLOWER_DURATION_US",
-    "MightexError",
-    "MightexSLC",
-    "Mode",
-    "TimeoutError",
-    "TriggerPolarity",
-    "ValidationError",
-    "get_controller",
     "MAX_CURRENT_NORMAL_MA",
     "MAX_CURRENT_PULSED_MA",
+    "MightexConnectionError",
+    "MightexError",
+    "MightexSLC",
+    "MightexTimeoutError",
+    "Mode",
+    "TriggerPolarity",
+    "ValidationError",
 ]
 __version__ = "0.1.0"
